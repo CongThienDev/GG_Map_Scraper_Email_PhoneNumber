@@ -1,0 +1,26 @@
+{
+  "name": "maps_scan_API",
+  "version": "1.0.0",
+  "description": "Mini web UI + API để chạy nhiều instance scraper Google Maps trên VPS",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "start:pm2": "pm2 start server.js -n maps-ui && pm2 save"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "csv-parse": "^5.5.6",
+    "cookie-parser": "^1.4.7",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "express-basic-auth": "^1.2.1",
+    "express-rate-limit": "^8.2.1",
+    "express-session": "^1.18.2",
+    "helmet": "^8.1.0",
+    "nanoid": "^5.0.7",
+    "puppeteer": "^23.7.1"
+  }
+}

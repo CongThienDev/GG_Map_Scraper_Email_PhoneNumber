@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Maps Scan Runner</title>
+  <style>
+    :root{
+      --bg:#f7f7fb;
+      --card:#ffffff;
+      --stroke:#e5e7eb;
+      --text:#0f172a;
+      --muted:#6b7280;
+      --accent:#2563eb;
+      --accent-2:#0ea5e9;
+    }
+    body{font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;background:var(--bg);color:var(--text);max-width:1100px;margin:28px auto;padding:0 14px;}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    h1{margin:0;font-size:28px}
+    .card{background:var(--card);border:1px solid var(--stroke);border-radius:14px;padding:16px;box-shadow:0 6px 18px rgba(15,23,42,0.04);}
+    form{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
+    label{display:flex;flex-direction:column;font-size:14px;gap:6px;color:var(--muted)}
+    input,textarea{padding:11px 12px;border:1px solid var(--stroke);border-radius:10px;font-size:15px;background:#f9fafb}
+    button{cursor:pointer;border:1px solid var(--stroke);border-radius:10px;padding:10px 14px;font-size:14px;background:var(--card);}
+    .primary{background:var(--accent);color:white;border-color:var(--accent)}
+    .ghost{background:#eef2ff;border-color:#e0e7ff;color:#4338ca}
+    .row-1{grid-column:1/-1}
+    pre{background:#0b1021;color:#dbdde7;padding:12px;border-radius:12px;max-height:420px;overflow:auto;white-space:pre-wrap}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border-bottom:1px solid #eee;padding:8px;text-align:left;font-size:14px}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef;border:1px solid #ccd;font-size:12px}
+    .pill-running{background:#d1fae5;border-color:#a7f3d0;color:#065f46;font-weight:500}
+    .pill-failed{background:#fee2e2;border-color:#fecaca;color:#b91c1c;font-weight:500}
+    .pill-finished{background:#e0f2fe;border-color:#bae6fd;color:#0f172a}
+    .pill-stopping{background:#fef9c3;border-color:#fef08a;color:#92400e}
+    .pill-queued{background:#f4f4f5;border-color:#e4e4e7;color:#444;font-weight:500}
+    .actions{display:flex;gap:6px;flex-wrap:wrap}
+    .btn{border:1px solid #ccc;border-radius:8px;padding:6px 10px;font-size:13px}
+    .btn-view{background:#e7f0ff;border-color:#b6d0ff}
+    .btn-stop{background:#fff3cd;border-color:#ffe8a1}
+    .btn-close{background:#eee;border-color:#ddd}
+    .btn-close.active{background:#ffe5e5;border-color:#ff9b9b;color:#b00000;font-weight:600}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .links a{margin-right:8px}
+    .summary{display:flex;gap:12px;margin-top:6px;margin-bottom:6px;flex-wrap:wrap}
+    .summary-item{background:#f4f4f5;border:1px solid #e4e4e7;border-radius:10px;padding:8px 14px}
+    .summary-item-title{font-size:11px;text-transform:uppercase;color:#52525b;letter-spacing:.02em}
+    .summary-item-value{font-size:17px;font-weight:600}
+    #progressMap{height:360px;border:1px solid #e4e4e7;border-radius:12px;margin-top:8px}
+    .pulse-marker{width:14px;height:14px;border-radius:50%;background:#d00;border:2px solid #fff;box-shadow:0 0 0 rgba(255,0,0,0.4);animation:pulse 1.5s infinite}
+    @keyframes pulse{
+      0%{box-shadow:0 0 0 0 rgba(255,0,0,0.4);}
+      70%{box-shadow:0 0 0 14px rgba(255,0,0,0);}
+      100%{box-shadow:0 0 0 0 rgba(255,0,0,0);}
+    }
+    .collapse{display:none;margin-top:12px}
+    .stack{display:flex;gap:8px;flex-wrap:wrap}
+  </style>
+  <!-- Leaflet (no integrity to avoid blocking on some browsers) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Google Maps Scan Runner</h1>
+    <form method="post" action="/logout">
+      <button type="submit">🚪 Logout</button>
+    </form>
+  </header>
+  <p>Nhập City + Keywords → bấm Run. Tùy chọn nâng cao và prefetch polygon được mở qua nút để UI gọn hơn.</p>
+
+  <div class="card" style="margin-bottom:14px">
+    <form id="jobForm">
+      <label class="row-1">City
+        <input name="city" placeholder="Hamburg" required/>
+      </label>
+      <label class="row-1">Keywords (phân tách bằng dấu phẩy hoặc |)
+        <textarea name="keywordsText" placeholder="nhà hàng, nhà hàng hải sản, nhà hàng buffet" rows="2" required></textarea>
+      </label>
+    </form>
+    <div class="stack" style="margin-top:8px">
+      <button class="primary" type="button" id="runBtn">🚀 Run</button>
+      <button type="button" id="refreshBtn">🔄 Refresh Jobs</button>
+      <button class="ghost" type="button" id="toggleAdv">⚙️ Advanced</button>
+      <button class="ghost" type="button" id="togglePoly">📍 Prefetch polygons</button>
+    </div>
+    <div id="advPanel" class="collapse">
+      <div class="adv-grid">
+        <label>Step meters
+          <input name="STEP_METERS" form="jobForm" type="number" min="200" step="50" value="1200"/>
+        </label>
+        <label>Max cells (0 = all)
+          <input name="MAX_CELLS" form="jobForm" type="number" min="0" step="1" value="0"/>
+        </label>
+        <label>Max links/cell (0 = all)
+          <input name="MAX_LINKS_PER_CELL" form="jobForm" type="number" min="0" step="1" value="0"/>
+        </label>
+        <label>Reset every N cells
+          <input name="RESET_EVERY_CELLS" form="jobForm" type="number" min="1" step="1" value="3"/>
+        </label>
+        <label>Browser max age (ms)
+          <input name="BROWSER_MAX_AGE_MS" form="jobForm" type="number" min="600000" step="60000" value="1800000"/>
+        </label>
+        <label style="align-items:flex-start">
+          <span>Headless</span>
+          <input name="HEADLESS" form="jobForm" type="checkbox" checked/>
+        </label>
+        <label class="row-1">Polygon file (optional)
+          <input name="POLYGON_PATH" form="jobForm" placeholder="polygon_Hamburg.json or /abs/path/to/file.json"/>
+        </label>
+        <label>Fallback radius (m) (0 = off)
+          <input name="FALLBACK_RADIUS_METERS" form="jobForm" type="number" min="0" step="100" value="0"/>
+        </label>
+        <label style="align-items:flex-start">
+          <span>Allow rough bbox if Nominatim fails</span>
+          <input name="ALLOW_ROUGH_BBOX" form="jobForm" type="checkbox"/>
+        </label>
+      </div>
+    </div>
+    <div id="polyPanel" class="collapse">
+      <form id="polyForm" style="margin-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <label class="row-1">Cities list
+          <textarea name="citiesText" placeholder="Berlin&#10;Hamburg&#10;Munich" rows="4"></textarea>
+        </label>
+        <label>Country (optional)
+          <input name="country" placeholder="Germany" value="Germany"/>
+        </label>
+        <div class="row-1 stack">
+          <button type="submit" id="polyFetch">📍 Fetch polygons</button>
+          <button type="button" id="polyStop" disabled>Close log</button>
+        </div>
+      </form>
+      <div id="polyHeader" style="margin-top:6px;color:var(--muted)">(No polygon fetch running)</div>
+      <pre id="polyLog" style="max-height:220px">(Submit list to fetch polygons)</pre>
+    </div>
+  </div>
+
+  <h2>Jobs</h2>
+
+  <div id="summary" class="summary">
+    <div class="summary-item">
+      <div class="summary-item-title">Running</div>
+      <div class="summary-item-value" id="sumRunning">0</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-item-title">In Queue</div>
+      <div class="summary-item-value" id="sumQueued">0</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-item-title">Failed</div>
+      <div class="summary-item-value" id="sumFailed">0</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-item-title">MAX_JOBS</div>
+      <div class="summary-item-value" id="sumMax">-</div>
+    </div>
+  </div>
+
+  <table id="jobsTable"><thead>
+    <tr><th>ID</th><th>Status</th><th>CITY</th><th>KEYWORDS</th><th>Files</th><th>Actions</th></tr>
+  </thead><tbody></tbody></table>
+
+  <h2>Logs</h2>
+  <div id="logHeader">(Select job to view log)</div>
+  <pre id="logBox">(Select job to view log)</pre>
+
+  <h2>Progress (grid map)</h2>
+  <div id="progressInfo">(Select job to view progress)</div>
+  <div id="progressMap"></div>
+  <canvas id="progressCanvas" width="920" height="360" style="width:100%;max-width:100%;border:1px solid #e4e4e7;border-radius:12px;margin-top:8px"></canvas>
+
+<script>
+const $ = s => document.querySelector(s);
+const jobsBody = $("#jobsTable tbody");
+const logBox = $("#logBox");
+const logHeader = $("#logHeader");
+const polyLog = $("#polyLog");
+const polyHeader = $("#polyHeader");
+const polyBox = document.getElementById("polyPanel");
+const polyForm = document.getElementById("polyForm");
+const polyFetchBtn = document.getElementById("polyFetch");
+const runBtn = document.getElementById("runBtn");
+const advPanel = document.getElementById("advPanel");
+const toggleAdv = document.getElementById("toggleAdv");
+const togglePoly = document.getElementById("togglePoly");
+let polyEs = null;
+let progressTimer = null;
+let map = null;
+let markersLayer = null;
+let polygonLayer = null;
+const progressCanvas = document.getElementById("progressCanvas");
+let mapUserMoved = false;
+let mapHasFit = false;
+
+let es = null;
+let currentJobId = null;
+let lastJobs = [];
+
+function updateSummary(stats = {}){
+  $("#sumRunning").textContent = stats.running ?? 0;
+  $("#sumFailed").textContent = stats.failed ?? 0;
+  $("#sumMax").textContent = stats.maxConcurrent ?? "-";
+  $("#sumQueued").textContent = stats.queueLength ?? stats.queued ?? 0;
+}
+
+function filesCell(job){
+  const parts = [];
+  if (job.csvUrl) {
+    parts.push(`<a href="${job.csvUrl}" target="_blank">CSV</a>`);
+    parts.push(`<a href="/jobs/${job.id}/excel" target="_blank">Excel</a>`);
+  }
+  if (job.CHECKPOINT_PATH) {
+    const rel = job.CHECKPOINT_PATH.split('/results/')[1] || '';
+    const ck = job.checkpointSummary || {};
+    const hint = `Rows: ${ck.processedCount || 0}, Cells: ${ck.currentCell || 0}/${ck.totalCells || "?"}, Time: ${ck.timestamp || "-"}`;
+    parts.push(`<a href="/results/${rel}" target="_blank" title="${hint}">CKPT</a>`);
+    if (ck.processedCount || ck.currentCell) {
+      parts.push(`<span style="font-size:12px;color:#6b7280">(${ck.processedCount || 0} rows)</span>`);
+    }
+  }
+  return parts.length ? `<span class="links">${parts.join(' ')}</span>` : "-";
+}
+
+function actionsCell(job){
+  const isActive = currentJobId === job.id;
+  const closeDisabled = !isActive;
+  const closeCls = `btn btn-close ${isActive ? 'active' : ''}`;
+
+  // nếu job còn đang queued thì không cần nút stop (vì nó chưa chạy)
+  const stopBtn = job.status === "running"
+    ? `<button class="btn btn-stop" data-id="${job.id}" data-act="stop" title="Dừng job (SIGINT)">Stop</button>`
+    : ``;
+
+  return `
+    <div class="actions">
+      <button class="btn btn-view" data-id="${job.id}" data-act="view" title="Xem log realtime">View</button>
+      ${stopBtn}
+      <button class="${closeCls}" data-id="${job.id}" data-act="close" title="Đóng log của job này" ${closeDisabled ? 'disabled' : ''}>Close</button>
+      <button class="btn" style="background:#ffe5e5;border-color:#ffb5b5" data-id="${job.id}" data-act="delete" title="Xóa job này">Delete</button>
+    </div>
+  `;
+}
+
+function row(job){
+  const tr = document.createElement("tr");
+  const statusClass = `pill-${job.status || ''}`;
+  tr.innerHTML = `
+    <td><code>${job.id}</code></td>
+    <td><span class="pill ${statusClass}">${job.status}</span></td>
+    <td>${job.CITY || "-"}</td>
+    <td>${(job.KEYWORDS||[]).join(", ")}</td>
+    <td>${filesCell(job)}</td>
+    <td>${actionsCell(job)}</td>
+  `;
+  return tr;
+}
+
+function renderJobs(jobs){
+  jobsBody.innerHTML = "";
+  jobs.forEach(j => jobsBody.appendChild(row(j)));
+}
+
+async function loadJobs(){
+  const r = await fetch("/jobs");
+  const data = await r.json();
+
+  const jobs = Array.isArray(data) ? data : (data.jobs || []);
+  const stats = Array.isArray(data) ? {} : (data.stats || {});
+
+  lastJobs = jobs;
+  renderJobs(jobs);
+  updateSummary(stats);
+}
+
+function closeStream(){
+  if (es) { es.close(); es = null; }
+  currentJobId = null;
+  logHeader.textContent = "(Select job to view log)";
+  logBox.textContent = "(Select job to view log)";
+  renderJobs(lastJobs);
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+}
+
+function openStream(id){
+  if (es) { es.close(); es = null; }
+
+  currentJobId = id;
+  logHeader.textContent = `Streaming logs for job ${id}…`;
+  logBox.textContent = "";
+  renderJobs(lastJobs);
+  startProgressPolling(id);
+
+  es = new EventSource(`/jobs/${id}/stream`);
+  es.onmessage = (ev) => {
+    const chunk = ev.data.replace(/\\n/g, "\n") + "\n";
+    logBox.textContent += chunk;
+    if (logBox.textContent.length > 10000) {
+      logBox.textContent = logBox.textContent.slice(-10000);
+    }
+    logBox.scrollTop = logBox.scrollHeight;
+  };
+  es.onerror = () => {
+    es.close();
+    es = null;
+  };
+  es.addEventListener("status", (ev) => {
+    logBox.textContent += `\n--- Job status: ${ev.data} ---\n`;
+  });
+}
+
+jobsBody.addEventListener("click", async (e) => {
+  const b = e.target.closest("button");
+  if(!b) return;
+  const id = b.dataset.id, act = b.dataset.act;
+
+  if (act === "view") {
+    openStream(id);
+    return;
+  }
+  if (act === "stop") {
+    await fetch(`/jobs/${id}/stop`, { method: "POST" });
+    await loadJobs();
+    return;
+  }
+  if (act === "close") {
+    if (currentJobId === id) closeStream();
+    return;
+  }
+  if (act === "delete") {
+    const yes = confirm("Are you sure you want to delete this job??");
+    if (!yes) return;
+    const r = await fetch(`/jobs/${id}`, { method: "DELETE" });
+    if (r.ok) {
+      if (currentJobId === id) {
+        closeStream();
+      }
+      await loadJobs();
+    } else {
+      alert("Xóa không thành công");
+    }
+    return;
+  }
+  if (act === "checkpoint") {
+    return;
+  }
+});
+
+$("#refreshBtn").onclick = loadJobs;
+runBtn.onclick = () => {
+  document.getElementById("jobForm").requestSubmit();
+};
+toggleAdv.onclick = () => {
+  advPanel.style.display = advPanel.style.display === "block" ? "none" : "block";
+};
+togglePoly.onclick = () => {
+  polyBox.style.display = polyBox.style.display === "block" ? "none" : "block";
+};
+
+$("#jobForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const city = fd.get("city").trim();
+  const keywordsText = (fd.get("keywordsText") || "").toString();
+
+  const body = {
+    city,
+    keywords: keywordsText,
+    STEP_METERS: Number(fd.get("STEP_METERS") || 0),
+    MAX_CELLS: Number(fd.get("MAX_CELLS") || 0),
+    MAX_LINKS_PER_CELL: Number(fd.get("MAX_LINKS_PER_CELL") || 0),
+    RESET_EVERY_CELLS: Number(fd.get("RESET_EVERY_CELLS") || 0),
+    BROWSER_MAX_AGE_MS: Number(fd.get("BROWSER_MAX_AGE_MS") || 0),
+    HEADLESS: fd.get("HEADLESS") === "on",
+    POLYGON_PATH: fd.get("POLYGON_PATH") || "",
+    FALLBACK_RADIUS_METERS: Number(fd.get("FALLBACK_RADIUS_METERS") || 0),
+    ALLOW_ROUGH_BBOX: fd.get("ALLOW_ROUGH_BBOX") === "on"
+  };
+
+  const r = await fetch("/jobs", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(body),
+  });
+  const data = await r.json();
+  if (!r.ok) {
+    alert(data.error || "Error");
+    return;
+  }
+
+  // nếu server báo queued thì cũng cứ reload list
+  await loadJobs();
+};
+
+loadJobs();
+
+polyForm.onsubmit = async (ev) => {
+  ev.preventDefault();
+  const fd = new FormData(polyForm);
+  const citiesText = fd.get("citiesText") || "";
+  const country = fd.get("country") || "";
+  const r = await fetch("/polygons", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ citiesText, country })
+  });
+  const data = await r.json();
+  if (!r.ok) {
+    alert(data.error || "Error");
+    return;
+  }
+
+  if (polyEs) polyEs.close();
+  polyHeader.textContent = `Streaming polygon fetch job ${data.id}…`;
+  polyLog.textContent = "";
+  $("#polyStop").disabled = false;
+
+  polyEs = new EventSource(`/polygons/${data.id}/stream`);
+  polyEs.onmessage = (ev) => {
+    polyLog.textContent += ev.data.replace(/\\n/g, "\n") + "\n";
+    if (polyLog.textContent.length > 12000) polyLog.textContent = polyLog.textContent.slice(-12000);
+    polyLog.scrollTop = polyLog.scrollHeight;
+  };
+  polyEs.addEventListener("status", (ev) => {
+    polyLog.textContent += `\n--- Polygon job ${ev.data} ---\n`;
+    $("#polyStop").disabled = true;
+    polyEs.close();
+  });
+  polyEs.onerror = () => {
+    $("#polyStop").disabled = true;
+    polyEs.close();
+  };
+};
+
+$("#polyStop").onclick = () => {
+  if (polyEs) polyEs.close();
+  $("#polyStop").disabled = true;
+  polyHeader.textContent = "(No polygon fetch running)";
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+};
+
+function ensureMap(){
+  if (map) return map;
+  if (typeof L === "undefined") {
+    console.warn("Leaflet not loaded");
+    return null;
+  }
+  map = L.map("progressMap").setView([20,0], 2);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+  setTimeout(() => map.invalidateSize(), 100);
+  map.on("movestart", () => { mapUserMoved = true; });
+  return map;
+}
+
+async function loadProgress(jobId){
+  if (!jobId) return;
+  const r = await fetch(`/jobs/${jobId}/progress`);
+  if (!r.ok) {
+    $("#progressInfo").textContent = "Progress unavailable";
+    return;
+  }
+  const data = await r.json();
+  $("#progressInfo").textContent = `City: ${data.city || "-"} | Cells: ${data.currentCell || 0}/${data.totalCells || "?"}`;
+
+  let centers = data.centersInline || [];
+  if ((!centers || !centers.length) && data.centersUrl) {
+    try { centers = await fetch(data.centersUrl).then(x => x.json()); } catch (e) { console.warn("centers load error", e); }
+  }
+  let polygon = data.polygonInline || null;
+  if (!polygon && data.polygonUrl) {
+    try { polygon = await fetch(data.polygonUrl).then(x => x.json()); } catch (e) { console.warn("polygon load error", e); }
+  }
+  const doneSet = new Set((data.gridRows || []).map(g => g.cell));
+  const currentCell = data.currentCell || 0;
+  // nếu chưa có gridRows nhưng currentCell > 1, coi như các cell trước đó đã xong
+  if (currentCell > 1 && doneSet.size < currentCell - 1) {
+    for (let i = 1; i < currentCell; i++) doneSet.add(i);
+  }
+
+  renderCanvasGrid({ centers, polygon, doneSet, currentCell });
+
+  const m = ensureMap();
+  if (!m) return;
+  markersLayer.clearLayers();
+  if (polygonLayer) { map.removeLayer(polygonLayer); polygonLayer = null; }
+  if (polygon && polygon.polygon) {
+    const latlngs = polygon.polygon.map(ring => ring.map(([lng,lat]) => [lat,lng]));
+    polygonLayer = L.polygon(latlngs, { color: "#0b6", weight: 2, fillOpacity: 0.05 }).addTo(map);
+    if (!mapUserMoved) {
+      try { map.fitBounds(polygonLayer.getBounds(), { padding: [20,20] }); mapHasFit = true; } catch {}
+    }
+  }
+
+  centers.forEach((c, i) => {
+    let color = "#aaa";
+    if (doneSet.has(i+1)) color = "#0a0";
+    if (currentCell === i+1) {
+      const icon = L.divIcon({ className: "pulse-marker" });
+      const marker = L.marker([c.lat, c.lng], { icon });
+      marker.bindTooltip(`Grid ${i+1}`);
+      markersLayer.addLayer(marker);
+    } else {
+      const marker = L.circleMarker([c.lat, c.lng], { radius: 4, color, fillColor: color, fillOpacity: 0.9 });
+      marker.bindTooltip(`Grid ${i+1}`);
+      markersLayer.addLayer(marker);
+    }
+  });
+
+  if (centers.length && (!polygon || !polygon.polygon)) {
+    if (!mapUserMoved) {
+      try {
+        const bounds = L.latLngBounds(centers.map(c => [c.lat, c.lng]));
+        map.fitBounds(bounds, { padding: [20,20] });
+        mapHasFit = true;
+      } catch {}
+    }
+  }
+}
+
+function startProgressPolling(jobId){
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+  if (!jobId) return;
+  loadProgress(jobId);
+  progressTimer = setInterval(() => loadProgress(jobId), 4000);
+}
+
+function renderCanvasGrid({ centers, polygon, doneSet, currentCell }) {
+  if (!progressCanvas) return;
+  const ctx = progressCanvas.getContext("2d");
+  const w = progressCanvas.width;
+  const h = progressCanvas.height;
+  ctx.clearRect(0,0,w,h);
+  const allPoints = [];
+  (centers || []).forEach(c => allPoints.push([c.lat, c.lng]));
+  if (polygon && polygon.polygon) {
+    polygon.polygon.forEach(ring => ring.forEach(([lng,lat]) => allPoints.push([lat,lng])));
+  }
+  if (!allPoints.length) return;
+  let minLat=Infinity, maxLat=-Infinity, minLng=Infinity, maxLng=-Infinity;
+  allPoints.forEach(([lat,lng]) => {
+    if (lat<minLat) minLat=lat;
+    if (lat>maxLat) maxLat=lat;
+    if (lng<minLng) minLng=lng;
+    if (lng>maxLng) maxLng=lng;
+  });
+  const pad = 0.02;
+  const dLat = maxLat - minLat || 1;
+  const dLng = maxLng - minLng || 1;
+  function toXY(lat,lng){
+    const x = ((lng - minLng)/(dLng))*(w*(1-pad)) + w*pad*0.5;
+    const y = h*(1-pad*0.5) - ((lat - minLat)/(dLat))*(h*(1-pad));
+    return [x,y];
+  }
+  // polygon
+  if (polygon && polygon.polygon) {
+    ctx.strokeStyle = "#0b6";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    polygon.polygon.forEach(ring => {
+      ring.forEach(([lng,lat], idx) => {
+        const [x,y] = toXY(lat,lng);
+        if (idx===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+    });
+    ctx.stroke();
+  }
+  // centers
+  (centers || []).forEach((c,i)=>{
+    const [x,y]=toXY(c.lat,c.lng);
+    let color="#aaa";
+    if (doneSet.has(i+1)) color="#0a0";
+    if (currentCell===i+1) color="#d00";
+    ctx.fillStyle=color;
+    ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+    if (currentCell===i+1) {
+      ctx.strokeStyle="rgba(255,0,0,0.4)";
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.stroke();
+    }
+  });
+}
+</script>
+</body>
+</html>
