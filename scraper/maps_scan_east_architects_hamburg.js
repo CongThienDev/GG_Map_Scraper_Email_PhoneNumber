@@ -175,6 +175,27 @@ const csvWriter = createCsvWriter({
   ],
   append: FILE_HAS_DATA
 });
+const CSV_FLUSH_SIZE = Math.max(1, envInt('CSV_FLUSH_SIZE', 20));
+const pendingCsvRows = [];
+
+async function flushCsvRows(force = false) {
+  if (!pendingCsvRows.length) return;
+  if (!force && pendingCsvRows.length < CSV_FLUSH_SIZE) return;
+  const rows = pendingCsvRows.splice(0, pendingCsvRows.length);
+  try {
+    await csvWriter.writeRecords(rows);
+  } catch (e) {
+    pendingCsvRows.unshift(...rows);
+    throw e;
+  }
+}
+
+async function enqueueCsvRow(row) {
+  pendingCsvRows.push(row);
+  if (pendingCsvRows.length >= CSV_FLUSH_SIZE) {
+    await flushCsvRows(true);
+  }
+}
 
 // ====== CHECKPOINT ======
 function loadStartCellIndex(defaultIdx = 0) {
@@ -743,13 +764,50 @@ async function getDetailsFromOpenPanel(page) {
 async function clearSearchBox(page) {
   const btn = await page.$('button[aria-label*="Clear search"], button[aria-label*="Suche löschen"], button[aria-label*="Xóa tìm kiếm"]');
   if (btn) { await btn.click().catch(() => { }); await sleep(400); }
-  const input = await page.$('input#searchboxinput');
+  const input = await findSearchInput(page, { attempts: 1 });
   if (input) { await input.click({ clickCount: 3 }).catch(() => { }); await page.keyboard.press('Backspace').catch(() => { }); await sleep(200); }
 }
 
+async function findSearchInput(page, { attempts = 2 } = {}) {
+  const selectors = [
+    'input#searchboxinput',
+    'input[aria-label*="Search Google Maps"]',
+    'input[aria-label*="Search"]',
+    'input[role="combobox"]'
+  ];
+
+  for (let i = 0; i < attempts; i++) {
+    for (const sel of selectors) {
+      const el = await page.$(sel);
+      if (el) return el;
+    }
+
+    await acceptConsentIfAny(page);
+    await sleep(500);
+    for (const sel of selectors) {
+      const el = await page.$(sel);
+      if (el) return el;
+    }
+
+    const currentUrl = await page.evaluate(() => location.href).catch(() => '');
+    if (!/google\.[^/]+\/maps/i.test(currentUrl)) {
+      await safeGoto(page, 'https://www.google.com/maps?hl=en&gl=US', { retries: 1 });
+      await sleep(1000);
+    } else {
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+      await sleep(800);
+    }
+  }
+
+  return null;
+}
+
 async function searchKeywordAtCenter(page, keyword) {
-  const input = await page.$('input#searchboxinput');
-  if (!input) return false;
+  const input = await findSearchInput(page, { attempts: 2 });
+  if (!input) {
+    console.log('  [WARN] search input not found after recover');
+    return false;
+  }
 
   try {
     await input.click({ clickCount: 3 }).catch(() => {});
@@ -866,6 +924,7 @@ let CURRENT_CELL = { ...START };
 
 process.on('SIGINT', async () => {
   console.log('\n[SIGINT] Ctrl+C → closing browser…');
+  try { await flushCsvRows(true); } catch { }
   try { await BROWSER?.close(); } catch { }
   try { saveCheckpoint(CURRENT_CELL_IDX, { note: 'Saved on SIGINT' }); } catch { }
   try { saveSeenCache(); } catch { }
@@ -880,7 +939,7 @@ async function extractByClickingCards(page, sidebar) {
   log.dbg(`  [DBG] initial cards in sidebar = ${cards.length}`);
 
   for (let i = 0; i < cards.length; i++) {
-    const card = (await sidebar.$$('div[role="article"]'))[i];
+    const card = cards[i];
     if (!card) break;
 
     const name = (await card.$eval('h3,[aria-level="3"]', el => el.innerText).catch(() => ''))?.trim() || '';
@@ -922,11 +981,11 @@ if (/before you continue to google/i.test(nameLower)) {
 
 // nếu không phải consent thì mới ghi CSV
 STT += 1;
-await csvWriter.writeRecords([{
+await enqueueCsvRow({
   stt: STT, name: det.name || '', address: det.address || '', phone: det.phone || '',
   website: det.website || '', category: CURRENT_KEYWORD, city: CITY,
   google_maps_url: placeUrl, center_lat: CURRENT_CELL.lat, center_lng: CURRENT_CELL.lng
-}]);
+});
 console.log(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'}`);
 
 
@@ -990,11 +1049,11 @@ if (key && seenKeys.has(key)) {
 }
 
 STT += 1;
-await csvWriter.writeRecords([{
+await enqueueCsvRow({
   stt: STT, name: det.name || '', address: det.address || '', phone: det.phone || '',
   website: det.website || '', category: CURRENT_KEYWORD, city: CITY,
   google_maps_url: url, center_lat: CURRENT_CELL.lat, center_lng: CURRENT_CELL.lng
-}]);
+});
 if (key) seenKeys.add(key);
 if (STT % 50 === 0) saveSeenCache();
 log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key ? '| key=' + key : ''}`);
@@ -1004,7 +1063,10 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
         try { await curPage.close(); } catch { }
         curPage = await hardResetSession(BROWSER);
       }
-      if (STT % 25 === 0) saveCheckpoint(CURRENT_CELL_IDX, { processedCount: STT, note: 'periodic-save' });
+      if (STT % 25 === 0) {
+        await flushCsvRows(true);
+        saveCheckpoint(CURRENT_CELL_IDX, { processedCount: STT, note: 'periodic-save' });
+      }
     } catch (err) {
       if (/Connection closed/i.test(String(err))) {
         curPage = await relaunchBrowser();
@@ -1160,6 +1222,7 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
 
       const sttAfter = STT;
       const wrote = sttAfter - sttBefore;
+      await flushCsvRows(true);
       saveCheckpoint(idx + 1, {
         lastCenter: CURRENT_CELL,
         lastKeyword: kw,
@@ -1184,6 +1247,7 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
     });
   }
 
+  await flushCsvRows(true);
   console.log(`\n[FINISHED] CSV: ${CSV_PATH} | tổng dòng: ${STT}`);
   saveSeenCache();
   try { await BROWSER.close(); } catch { }
