@@ -9,17 +9,19 @@ function applySecurityMiddleware(app, config) {
   app.use(require("express").json());
   app.use(require("express").urlencoded({ extended: true }));
 
-  app.use(session({
-    name: "mapsui.sid",
-    secret: config.sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: config.cookieSecure,
-    },
-  }));
+  app.use(
+    session({
+      name: "mapsui.sid",
+      secret: config.sessionSecret,
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: config.cookieSecure,
+      },
+    })
+  );
 }
 
 module.exports = {

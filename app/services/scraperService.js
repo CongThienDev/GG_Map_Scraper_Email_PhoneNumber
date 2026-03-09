@@ -115,7 +115,10 @@ function createScraperService({ config, store }) {
     const city = (body.city || "").trim();
     let keywords = body.keywords;
     if (typeof keywords === "string") {
-      keywords = keywords.split(/[|,]/).map((s) => s.trim()).filter(Boolean);
+      keywords = keywords
+        .split(/[|,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
     }
 
     if (!city || !Array.isArray(keywords) || keywords.length === 0) {
@@ -129,7 +132,10 @@ function createScraperService({ config, store }) {
     const BROWSER_MAX_AGE_MS = toInt(body.BROWSER_MAX_AGE_MS, defaults.browserMaxAgeMs);
     const HEADLESS = toBool(body.HEADLESS, defaults.headless);
     const POLYGON_PATH = (body.POLYGON_PATH || defaults.polygonPath).toString().trim();
-    const FALLBACK_RADIUS_METERS = toInt(body.FALLBACK_RADIUS_METERS, defaults.fallbackRadiusMeters);
+    const FALLBACK_RADIUS_METERS = toInt(
+      body.FALLBACK_RADIUS_METERS,
+      defaults.fallbackRadiusMeters
+    );
     const ALLOW_ROUGH_BBOX = toBool(body.ALLOW_ROUGH_BBOX, defaults.allowRoughBbox);
 
     const id = store.nextJobId();
@@ -227,12 +233,14 @@ function createScraperService({ config, store }) {
     const centers = store.readJsonCached(j.resultsPaths.CENTERS_PATH, []);
     const polygonInline = store.readJsonCached(j.resultsPaths.POLYGON_OUT_PATH, null);
 
-    const centersUrl = j.resultsPaths.CENTERS_PATH && fs.existsSync(j.resultsPaths.CENTERS_PATH)
-      ? `/results/${path.relative(resultsBase, j.resultsPaths.CENTERS_PATH)}`
-      : null;
-    const polygonUrl = j.resultsPaths.POLYGON_OUT_PATH && fs.existsSync(j.resultsPaths.POLYGON_OUT_PATH)
-      ? `/results/${path.relative(resultsBase, j.resultsPaths.POLYGON_OUT_PATH)}`
-      : null;
+    const centersUrl =
+      j.resultsPaths.CENTERS_PATH && fs.existsSync(j.resultsPaths.CENTERS_PATH)
+        ? `/results/${path.relative(resultsBase, j.resultsPaths.CENTERS_PATH)}`
+        : null;
+    const polygonUrl =
+      j.resultsPaths.POLYGON_OUT_PATH && fs.existsSync(j.resultsPaths.POLYGON_OUT_PATH)
+        ? `/results/${path.relative(resultsBase, j.resultsPaths.POLYGON_OUT_PATH)}`
+        : null;
 
     const totalCells = ck.totalCells || (Array.isArray(centers) ? centers.length : 0);
     let currentCell = ck.currentCell || ck.nextCellIndex || 0;

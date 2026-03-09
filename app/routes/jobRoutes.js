@@ -37,7 +37,8 @@ function createJobRoutes({ scraperService }) {
     if (!job) return res.status(404).json({ error: "Not found" });
 
     const csvPath = job.resultsPaths.CSV_PATH;
-    if (!csvPath || !fs.existsSync(csvPath)) return res.status(404).json({ error: "CSV not found" });
+    if (!csvPath || !fs.existsSync(csvPath))
+      return res.status(404).json({ error: "CSV not found" });
 
     try {
       const csvContent = fs.readFileSync(csvPath, "utf8");
@@ -50,8 +51,14 @@ function createJobRoutes({ scraperService }) {
         records.forEach((r) => ws.addRow(r));
       }
 
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.setHeader("Content-Disposition", `attachment; filename=\"${path.basename(csvPath, ".csv")}.xlsx\"`);
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=\"${path.basename(csvPath, ".csv")}.xlsx\"`
+      );
       await wb.xlsx.write(res);
       res.end();
     } catch (e) {
@@ -81,7 +88,6 @@ function createJobRoutes({ scraperService }) {
     res.flushHeaders();
 
     let idx = Math.max(0, job.logs.length - 100);
-    let intervalId;
 
     const sendNew = () => {
       while (idx < job.logs.length) {
@@ -97,8 +103,8 @@ function createJobRoutes({ scraperService }) {
       }
     };
 
+    const intervalId = setInterval(sendNew, 500);
     sendNew();
-    intervalId = setInterval(sendNew, 500);
     req.on("close", () => clearInterval(intervalId));
   });
 

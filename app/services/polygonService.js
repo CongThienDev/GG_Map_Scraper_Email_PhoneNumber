@@ -48,7 +48,10 @@ function createPolygonService({ rootDir }) {
   function createJob(body) {
     const text = (body.citiesText || "").toString().trim();
     const country = (body.country || "").toString().trim();
-    const list = text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const list = text
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (!list.length) return { error: "Thiếu danh sách city" };
 
     const job = spawnPolygonJob({ cities: list, country });

@@ -1,6 +1,5 @@
 const express = require("express");
 const fs = require("fs");
-const path = require("path");
 
 const { applySecurityMiddleware } = require("./middleware/security");
 const { createAuth } = require("./middleware/auth");
@@ -15,7 +14,9 @@ function createApp(config) {
   const app = express();
   applySecurityMiddleware(app, config);
 
-  const { loginLimiter, requireAuth } = createAuth({ idleTimeoutMs: config.defaults.idleTimeoutMs });
+  const { loginLimiter, requireAuth } = createAuth({
+    idleTimeoutMs: config.defaults.idleTimeoutMs,
+  });
   const authRoutes = createAuthRoutes({
     adminUser: config.adminUser,
     adminHash: config.adminHash,
