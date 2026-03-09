@@ -7,7 +7,11 @@
   "scripts": {
     "start": "node server.js",
     "start:pm2": "pm2 start server.js -n maps-ui && pm2 save",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "lint": "eslint server.js app __tests__",
+    "lint:fix": "eslint server.js app __tests__ --fix",
+    "format": "prettier --write \"{server.js,app/**/*.js,__tests__/**/*.js,README.md,package.json}\"",
+    "format:check": "prettier --check \"{server.js,app/**/*.js,__tests__/**/*.js,README.md,package.json}\""
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -22,10 +26,13 @@
     "express-session": "^1.18.2",
     "helmet": "^8.1.0",
     "nanoid": "^5.0.7",
-    "puppeteer": "^23.7.1"
+    "puppeteer": "^23.7.1",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "eslint": "^10.0.3",
     "jest": "^30.2.0",
+    "prettier": "^3.8.1",
     "supertest": "^7.2.2"
   }
 }

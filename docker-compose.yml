@@ -1,0 +1,17 @@
+services:
+  maps-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: maps-scraper
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PORT=8080
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+      - HEADLESS=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./results:/app/results

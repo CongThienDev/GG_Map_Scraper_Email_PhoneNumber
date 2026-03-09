@@ -1,44 +1,88 @@
 const path = require("path");
-const { toInt, toBool } = require("../utils/parsers");
+const { z } = require("zod");
+
+function intFromEnv(defaultValue) {
+  return z.preprocess((value) => {
+    if (value === undefined || value === null || value === "") return defaultValue;
+    const n = Number.parseInt(String(value), 10);
+    return Number.isFinite(n) ? n : value;
+  }, z.number().int());
+}
+
+function boolFromEnv(defaultValue) {
+  return z.preprocess((value) => {
+    if (value === undefined || value === null || value === "") return defaultValue;
+    const s = String(value).toLowerCase();
+    if (["1", "true", "yes", "on"].includes(s)) return true;
+    if (["0", "false", "no", "off"].includes(s)) return false;
+    return value;
+  }, z.boolean());
+}
+
+const envSchema = z
+  .object({
+    PORT: intFromEnv(8080).refine((n) => n > 0 && n <= 65535, "PORT must be 1-65535"),
+    COOKIE_SECURE: boolFromEnv(false),
+    SESSION_SECRET: z
+      .string()
+      .min(16, "SESSION_SECRET must be at least 16 chars")
+      .refine((v) => v !== "high5hoiangmailcom", "SESSION_SECRET cannot use insecure default"),
+    ADMIN_USER: z.string().min(1, "ADMIN_USER is required"),
+    ADMIN_HASH: z.string().min(20, "ADMIN_HASH is required"),
+    MAX_CONCURRENT: intFromEnv(13).refine((n) => n > 0, "MAX_CONCURRENT must be > 0"),
+    STEP_METERS: intFromEnv(1200).refine((n) => n >= 100, "STEP_METERS must be >= 100"),
+    MAX_CELLS: intFromEnv(0).refine((n) => n >= 0, "MAX_CELLS must be >= 0"),
+    MAX_LINKS_PER_CELL: intFromEnv(0).refine((n) => n >= 0, "MAX_LINKS_PER_CELL must be >= 0"),
+    RESET_EVERY_CELLS: intFromEnv(3).refine((n) => n > 0, "RESET_EVERY_CELLS must be > 0"),
+    BROWSER_MAX_AGE_MS: intFromEnv(30 * 60 * 1000).refine(
+      (n) => n >= 60_000,
+      "BROWSER_MAX_AGE_MS must be >= 60000"
+    ),
+    HEADLESS: boolFromEnv(true),
+    POLYGON_PATH: z.string().optional().default(""),
+    FALLBACK_RADIUS_METERS: intFromEnv(0).refine(
+      (n) => n >= 0,
+      "FALLBACK_RADIUS_METERS must be >= 0"
+    ),
+    ALLOW_ROUGH_BBOX: boolFromEnv(false),
+    IDLE_TIMEOUT_MS: intFromEnv(30 * 60 * 1000).refine(
+      (n) => n >= 60_000,
+      "IDLE_TIMEOUT_MS must be >= 60000"
+    ),
+  })
+  .passthrough();
 
 function loadEnvConfig(rootDir) {
-  const sessionSecret = process.env.SESSION_SECRET || "high5hoiangmailcom";
-  const adminUser = process.env.ADMIN_USER || "";
-  const adminHash = process.env.ADMIN_HASH || "";
-
-  if (!process.env.SESSION_SECRET || sessionSecret === "high5hoiangmailcom") {
-    throw new Error("SESSION_SECRET chưa đặt hoặc dùng mặc định");
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new Error(`Invalid environment config - ${details}`);
   }
 
-  if (!adminUser || !adminHash) {
-    throw new Error("ADMIN_USER/ADMIN_HASH chưa được cấu hình");
-  }
-
-  const defaults = {
-    maxConcurrent: toInt(process.env.MAX_CONCURRENT, 13),
-    stepMeters: toInt(process.env.STEP_METERS, 1200),
-    maxCells: toInt(process.env.MAX_CELLS, 0),
-    maxLinksPerCell: toInt(process.env.MAX_LINKS_PER_CELL, 0),
-    resetEveryCells: toInt(process.env.RESET_EVERY_CELLS, 3),
-    browserMaxAgeMs: toInt(process.env.BROWSER_MAX_AGE_MS, 30 * 60 * 1000),
-    headless: !((process.env.HEADLESS || "true").toLowerCase() === "false"),
-    polygonPath: process.env.POLYGON_PATH || "",
-    fallbackRadiusMeters: toInt(process.env.FALLBACK_RADIUS_METERS, 0),
-    allowRoughBbox: toBool(process.env.ALLOW_ROUGH_BBOX, false),
-    idleTimeoutMs: toInt(process.env.IDLE_TIMEOUT_MS, 30 * 60 * 1000),
-  };
-
+  const env = parsed.data;
   return {
-    port: process.env.PORT || 8080,
+    port: env.PORT,
     rootDir,
     publicDir: path.join(rootDir, "public"),
     resultsBase: path.join(rootDir, "results"),
     scriptPath: path.join(rootDir, "scraper", "maps_scan_east_architects_hamburg.js"),
-    cookieSecure: process.env.COOKIE_SECURE === "1",
-    sessionSecret,
-    adminUser,
-    adminHash,
-    defaults,
+    cookieSecure: env.COOKIE_SECURE,
+    sessionSecret: env.SESSION_SECRET,
+    adminUser: env.ADMIN_USER,
+    adminHash: env.ADMIN_HASH,
+    defaults: {
+      maxConcurrent: env.MAX_CONCURRENT,
+      stepMeters: env.STEP_METERS,
+      maxCells: env.MAX_CELLS,
+      maxLinksPerCell: env.MAX_LINKS_PER_CELL,
+      resetEveryCells: env.RESET_EVERY_CELLS,
+      browserMaxAgeMs: env.BROWSER_MAX_AGE_MS,
+      headless: env.HEADLESS,
+      polygonPath: env.POLYGON_PATH || "",
+      fallbackRadiusMeters: env.FALLBACK_RADIUS_METERS,
+      allowRoughBbox: env.ALLOW_ROUGH_BBOX,
+      idleTimeoutMs: env.IDLE_TIMEOUT_MS,
+    },
   };
 }
 
