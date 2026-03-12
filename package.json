@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "start:pm2": "pm2 start server.js -n maps-ui && pm2 save",
+    "polygon:city": "node scripts/fetch_polygon_city.js",
     "test": "jest --runInBand",
     "lint": "eslint server.js app __tests__",
     "lint:fix": "eslint server.js app __tests__ --fix",
