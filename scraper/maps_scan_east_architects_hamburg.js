@@ -35,6 +35,7 @@ let KEYWORDS = parseKeywords(env('KEYWORDS', ''), [
   'Painter',
 ]);
 const CITY = env('CITY', 'Hamburg');
+const COUNTRY = env('COUNTRY', 'Germany');
 
 const TARGET_SCALE_TEXT = new RegExp(
   `(^|\\s)${env('TARGET_SCALE_TEXT', '500\\s*m')}(\\s|$)`, 'i'
@@ -485,8 +486,6 @@ function makeKey({ url = '', website = '', phone = '' }) {
 }
 
 // ====== POLYGON / GRID (OSM) ======
-const COUNTRY = 'Germany';
-
 // luôn lấy đường dẫn tuyệt đối tới thư mục scraper, tránh phụ thuộc cwd
 const SCRAPER_DIR = __dirname;
 
@@ -569,8 +568,7 @@ function pickBestHit(arr) {
   const wantedTypes = new Set(['administrative', 'city', 'municipality', 'borough']);
   let candidates = arr.filter(x =>
     x && x.geojson && x.class === 'boundary' &&
-    (wantedTypes.has(x.type) || x.type === 'city') &&
-    (!x.address || !x.address.country || x.address.country.toLowerCase().includes('germany') || (x.address.country_code === 'de'))
+    (wantedTypes.has(x.type) || x.type === 'city')
   );
   if (!candidates.length) candidates = arr.filter(x => x && x.geojson);
   candidates.sort((a, b) => {
@@ -647,7 +645,7 @@ async function getCityPolygon(city) {
     }
 
     throw new Error(
-      `Không lấy được polygon cho thành phố "${city}". Tạo file ${suggested} (đặt trong scraper/ hoặc project root) hoặc truyền POLYGON_PATH để chạy lại.`
+      `Không lấy được polygon cho thành phố "${city}". Tạo file ${suggested} (đặt trong Polygon_List/, scraper/ hoặc project root) hoặc truyền POLYGON_PATH để chạy lại.`
     );
   }
 
@@ -672,7 +670,7 @@ async function getCityPolygon(city) {
   const polygon = polys.map(rings => rings[0]);
 
   // lưu lại theo tên chuẩn đầu tiên
-  const savePath = cacheCandidates[0];
+  const savePath = cacheCandidates.find(p => p.startsWith(POLYGON_DIR + path.sep)) || cacheCandidates[0];
   fs.writeFileSync(savePath, JSON.stringify({ city, polygon }, null, 2), 'utf8');
   console.log('[POLY] saved to', savePath);
 

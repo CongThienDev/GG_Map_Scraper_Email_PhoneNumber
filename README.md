@@ -74,6 +74,24 @@ npm run format
 npm run format:check
 ```
 
+## Prefetch Polygon For One City
+
+```bash
+npm run polygon:city -- --city "Hà Nội" --country "Vietnam"
+```
+
+Optional output path:
+
+```bash
+npm run polygon:city -- --city "Hà Nội" --country "Vietnam" --out "Polygon_List/polygon_H__N_i.json"
+```
+
+Fetch directly by OSM relation id (more stable than city search):
+
+```bash
+npm run polygon:city -- --osm-id "R1903516" --city "Hà Nội" --out "Polygon_List/polygon_H__N_i.json"
+```
+
 ## Environment validation (fail-fast)
 
 Env is validated at startup in `app/config/env.js` via `zod`.
