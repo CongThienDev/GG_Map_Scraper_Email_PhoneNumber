@@ -9,6 +9,13 @@ function createTestApp(scraperService) {
   return app;
 }
 
+function createTestAppWithCatalog(scraperService, areaCatalogService) {
+  const app = express();
+  app.use(express.json());
+  app.use(createJobRoutes({ scraperService, areaCatalogService }));
+  return app;
+}
+
 describe("jobRoutes", () => {
   test("POST /jobs creates job successfully", async () => {
     const scraperService = {
@@ -48,6 +55,31 @@ describe("jobRoutes", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/Thiếu city hoặc keywords/);
+  });
+
+  test("POST /jobs/batch creates one job per unique catalog area", async () => {
+    const scraperService = {
+      createJob: jest.fn().mockReturnValue({ job: { id: "job-1" }, queued: false }),
+    };
+    const area = { id: "osm-r2", name: "Hải Châu", level: 6 };
+    const areaCatalogService = {
+      getAreasByIds: jest.fn().mockReturnValue([area]),
+      polygonPathFor: jest.fn().mockReturnValue("/tmp/osm-r2.json"),
+    };
+    const app = createTestAppWithCatalog(scraperService, areaCatalogService);
+    const res = await request(app)
+      .post("/jobs/batch")
+      .send({ areaIds: ["osm-r2", "osm-r2"], keywords: "spa", STEP_METERS: 1200 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.count).toBe(1);
+    expect(scraperService.createJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        city: "Hải Châu",
+        country: "Việt Nam",
+        POLYGON_PATH: "/tmp/osm-r2.json",
+      })
+    );
   });
 
   test("GET /jobs returns list and stats", async () => {

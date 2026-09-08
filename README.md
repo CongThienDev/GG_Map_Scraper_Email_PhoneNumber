@@ -92,6 +92,22 @@ Fetch directly by OSM relation id (more stable than city search):
 npm run polygon:city -- --osm-id "R1903516" --city "Hà Nội" --out "Polygon_List/polygon_H__N_i.json"
 ```
 
+## Vietnam area catalog and batch crawl
+
+The **Bản đồ Việt Nam** tab imports administrative boundaries once, saves full polygons in
+`data/vietnam/boundaries/`, and creates one crawl job for every selected area. It does not
+bulk-query Nominatim. Click **Nạp/cập nhật catalog** in the UI, or run:
+
+```bash
+npm run areas:vn
+```
+
+The import uses current post-2025 province geometry for filters, plus static `geoBoundaries`
+ADM2 geometry for the 708 practical crawl areas; it then saves the result locally. Set
+`VN_PROVINCES_GEOJSON_URL` or `GEOBOUNDARIES_API` only when using a compatible mirror. The
+browser receives simplified display geometry; the scraper receives the full local polygon for
+each job.
+
 ## Environment validation (fail-fast)
 
 Env is validated at startup in `app/config/env.js` via `zod`.

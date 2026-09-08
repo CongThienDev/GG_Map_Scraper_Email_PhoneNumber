@@ -30,7 +30,8 @@
       }
       button,
       input,
-      textarea {
+      textarea,
+      select {
         font: inherit;
       }
       button {
@@ -143,7 +144,8 @@
         grid-column: 1/-1;
       }
       input,
-      textarea {
+      textarea,
+      select {
         width: 100%;
         padding: 12px 13px;
         border: 1px solid #d5ddeb;
@@ -180,6 +182,10 @@
         background: var(--blue);
         border-color: var(--blue);
         color: #fff;
+      }
+      .btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.52;
       }
       .amber {
         color: var(--amber);
@@ -345,6 +351,141 @@
         border-radius: 10px;
         overflow: hidden;
       }
+      .area-shell {
+        max-width: none;
+      }
+      .area-toolbar {
+        display: grid;
+        grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr) auto;
+        gap: 12px;
+        align-items: end;
+        margin: 24px 0 16px;
+      }
+      .area-toolbar .btn,
+      .area-actions .btn {
+        min-height: 46px;
+      }
+      .area-status {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 14px 0;
+      }
+      .pill {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: #eef4ff;
+        color: #1849a9;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .area-workspace {
+        display: grid;
+        grid-template-columns: minmax(300px, 1.4fr) minmax(260px, 0.9fr);
+        gap: 16px;
+      }
+      .area-map {
+        height: min(64vh, 640px);
+        min-height: 440px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .area-side {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+        overflow: hidden;
+      }
+      .area-side-head {
+        padding: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .area-list {
+        min-height: 0;
+        max-height: 480px;
+        overflow: auto;
+        overscroll-behavior: contain;
+      }
+      .area-row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-align: left;
+        padding: 11px 14px;
+        border: 0;
+        border-bottom: 1px solid #edf0f5;
+        background: #fff;
+        color: var(--ink);
+      }
+      .area-row:hover {
+        background: #f6f8fc;
+      }
+      .area-row[aria-pressed="true"] {
+        background: #eef4ff;
+      }
+      .area-row b {
+        display: block;
+      }
+      .area-row span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .area-check {
+        flex: 0 0 auto;
+        width: 18px;
+        height: 18px;
+        border: 2px solid #98a2b3;
+        border-radius: 4px;
+      }
+      .area-row[aria-pressed="true"] .area-check {
+        border-color: var(--blue);
+        background: var(--blue);
+        box-shadow: inset 0 0 0 3px #fff;
+      }
+      .area-selection-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 0 0 16px;
+        padding: 12px 14px;
+        border: 1px solid #c7d7fe;
+        border-radius: 12px;
+        background: #f5f8ff;
+      }
+      .area-selection-bar b {
+        color: #1849a9;
+      }
+      .area-selection-bar .btn {
+        padding: 7px 10px;
+        font-size: 13px;
+      }
+      .area-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: end;
+        margin: 0 0 16px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+      }
+      .area-actions textarea {
+        min-height: 76px;
+      }
+      .empty-area {
+        padding: 18px;
+        color: var(--muted);
+      }
       #gridCanvas {
         width: 100%;
         height: 290px;
@@ -389,6 +530,22 @@
         .detail-maps {
           grid-template-columns: 1fr;
         }
+        .area-toolbar,
+        .area-workspace,
+        .area-actions {
+          grid-template-columns: 1fr;
+        }
+        .area-selection-bar {
+          align-items: stretch;
+          flex-direction: column;
+        }
+        .area-map {
+          min-height: 360px;
+          height: 50vh;
+        }
+        .area-list {
+          max-height: 300px;
+        }
       }
     </style>
   </head>
@@ -406,6 +563,8 @@
           <button class="tab" id="create-tab" role="tab" aria-selected="true">Tạo đơn quét</button
           ><button class="tab" id="cities-tab" role="tab" aria-selected="false">
             Chuẩn bị thành phố</button
+          ><button class="tab" id="areas-tab" role="tab" aria-selected="false">
+            Bản đồ Việt Nam</button
           ><button class="tab" id="jobs-tab" role="tab" aria-selected="false">Đợt quét</button>
         </nav>
       </div>
@@ -485,6 +644,75 @@
           </div>
         </div>
       </section>
+      <section class="panel" id="areas" hidden>
+        <div class="card area-shell">
+          <h1>Chọn khu vực Việt Nam</h1>
+          <p class="lead">
+            Chọn các khu vực quét trên bản đồ. Mỗi khu vực tạo một đơn riêng, dùng polygon đã lưu để
+            phủ đủ grid.
+          </p>
+          <p class="msg" id="areaMsg" role="status" aria-live="polite"></p>
+          <div class="area-status" id="areaStatus" hidden></div>
+          <div class="area-toolbar">
+            <label
+              >Tỉnh/thành cấp tỉnh<select id="provinceFilter">
+                <option value="">Toàn Việt Nam</option>
+              </select></label
+            >
+            <label
+              >Tìm khu vực<input
+                id="areaSearch"
+                type="search"
+                placeholder="Ví dụ: Hội An, Hải Châu"
+                autocomplete="off"
+            /></label>
+            <button class="btn" type="button" id="importVn">Nạp/cập nhật catalog</button>
+          </div>
+          <div class="area-selection-bar" id="areaSelectionBar" aria-live="polite" hidden>
+            <span
+              ><b id="areaSelectionCount">Bước 1: Chưa chọn khu vực</b><br /><span class="hint"
+                >Bước 2: nhập ngành nghề. Bước 3: tạo đơn.</span
+              ></span
+            >
+            <button class="btn" type="button" id="clearAreaSelection" disabled>Xóa lựa chọn</button>
+          </div>
+          <form id="batchForm" class="area-actions" hidden>
+            <label
+              >Ngành nghề cần tìm<textarea
+                name="keywords"
+                placeholder="Ví dụ: nhà hàng hải sản&#10;homestay"
+                required
+              ></textarea>
+            </label>
+            <div>
+              <label
+                >Khoảng cách grid (m)<input
+                  name="STEP_METERS"
+                  type="number"
+                  min="100"
+                  step="100"
+                  value="1200"
+                  required /></label
+              ><button class="btn primary" id="batchBtn">Chọn khu vực trước</button>
+            </div>
+          </form>
+          <div class="area-workspace" id="areaWorkspace" hidden>
+            <div
+              class="area-map"
+              id="areaMap"
+              aria-label="Bản đồ khu vực Việt Nam; chọn khu vực bằng danh sách hoặc bằng cách nhấp vào polygon"
+            ></div>
+            <div class="area-side">
+              <div class="area-side-head">
+                <h2>Khu vực hiển thị</h2>
+                <p class="hint" id="areaListMeta">Đang tải…</p>
+              </div>
+              <div class="area-list" id="areaList"></div>
+            </div>
+          </div>
+          <pre class="log" id="importLog" hidden></pre>
+        </div>
+      </section>
       <section class="panel" id="jobs" hidden>
         <div class="toolbar">
           <div>
@@ -531,6 +759,12 @@
         stream,
         timer;
       let leafletMap, markers, polygonLayer;
+      let areaMap,
+        areaLayer,
+        areaRenderer,
+        areaCatalog = [],
+        areaSearchTimer;
+      const selectedAreaIds = new Set();
       const esc = (s) =>
         String(s || "").replace(
           /[&<>"']/g,
@@ -544,11 +778,12 @@
         stopping: "Đang dừng",
       };
       function tab(id) {
-        ["create", "cities", "jobs"].forEach((x) => {
+        ["create", "cities", "areas", "jobs"].forEach((x) => {
           $("#" + x).hidden = x !== id;
           $("#" + x + "-tab").setAttribute("aria-selected", x === id);
         });
         if (id === "jobs") load();
+        if (id === "areas") loadVietnamAreas();
       }
       document
         .querySelectorAll(".tab")
@@ -556,6 +791,214 @@
       $("#newJob").onclick = () => tab("create");
       $("#copyCountry").onclick = () =>
         ($("#polyForm [name=country]").value = $("#jobForm [name=country]").value);
+      const fmt = new Intl.NumberFormat("vi-VN");
+      async function json(url, options) {
+        const response = await fetch(url, options);
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(body.error || "Không thể tải dữ liệu");
+        return body;
+      }
+      function setAreaMessage(message, type = "") {
+        const el = $("#areaMsg");
+        el.className = "msg " + type;
+        el.textContent = message;
+      }
+      async function loadVietnamAreas() {
+        try {
+          const status = await json("/areas/vn/status");
+          const tags = $("#areaStatus");
+          tags.hidden = false;
+          tags.innerHTML = status.ready
+            ? `<span class="pill">${fmt.format(status.crawlAreas)} khu vực quét</span><span class="pill">${fmt.format(status.provinces)} tỉnh/thành</span><span class="pill">Cập nhật ${new Date(status.importedAt).toLocaleDateString("vi-VN")}</span>`
+            : `<span class="pill">Chưa có catalog</span>`;
+          if (!status.ready) {
+            $("#areaWorkspace").hidden = true;
+            $("#batchForm").hidden = true;
+            $("#areaSelectionBar").hidden = true;
+            return setAreaMessage(
+              "Chưa có dữ liệu ranh giới. Nhấn “Nạp/cập nhật catalog” để tải một lần và lưu cục bộ."
+            );
+          }
+          setAreaMessage("Chọn tỉnh để tải bản đồ nhẹ hơn, hoặc xem toàn Việt Nam.");
+          if (!$("#provinceFilter").dataset.loaded) {
+            const { provinces } = await json("/areas/vn/provinces");
+            $("#provinceFilter").insertAdjacentHTML(
+              "beforeend",
+              provinces.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")
+            );
+            $("#provinceFilter").dataset.loaded = "true";
+          }
+          $("#areaWorkspace").hidden = false;
+          $("#batchForm").hidden = false;
+          $("#areaSelectionBar").hidden = false;
+          if (!areaMap && typeof L !== "undefined") {
+            areaRenderer = L.canvas({ padding: 0.35 });
+            areaMap = L.map("areaMap", { preferCanvas: true }).setView([16.1, 106.2], 6);
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+              attribution: "&copy; OpenStreetMap",
+            }).addTo(areaMap);
+          }
+          if (!areaCatalog.length) await refreshAreaList({ geometry: true, fit: true });
+        } catch (error) {
+          setAreaMessage(error.message, "error");
+        }
+      }
+      async function refreshAreaList({ geometry = false, fit = false } = {}) {
+        const provinceId = $("#provinceFilter").value;
+        const q = $("#areaSearch").value.trim();
+        try {
+          const result = await json(
+            `/areas/vn?provinceId=${encodeURIComponent(provinceId)}&q=${encodeURIComponent(q)}`
+          );
+          areaCatalog = result.areas;
+          renderAreaList();
+          if (!geometry) return;
+          const featureCollection = await json(
+            `/areas/vn/geojson?provinceId=${encodeURIComponent(provinceId)}`
+          );
+          renderAreaMap(featureCollection, fit);
+        } catch (error) {
+          setAreaMessage(error.message, "error");
+        }
+      }
+      function renderAreaList() {
+        const visible = areaCatalog.slice(0, 300);
+        $("#areaListMeta").textContent =
+          `${fmt.format(areaCatalog.length)} khu vực${areaCatalog.length > visible.length ? ` · hiển thị ${visible.length} đầu` : ""}`;
+        $("#areaList").innerHTML = visible.length
+          ? visible
+              .map(
+                (area) =>
+                  `<button class="area-row" type="button" data-area-id="${esc(area.id)}" aria-pressed="${selectedAreaIds.has(area.id)}"><i class="area-check" aria-hidden="true"></i><span><b>${esc(area.name)}</b>${esc(area.parentName || "Chưa xác định tỉnh")}</span></button>`
+              )
+              .join("")
+          : '<p class="empty-area">Không có khu vực phù hợp.</p>';
+        updateBatchButton();
+      }
+      function renderAreaMap(featureCollection, fit) {
+        if (!areaMap) return;
+        if (areaLayer) areaMap.removeLayer(areaLayer);
+        areaLayer = L.geoJSON(featureCollection, {
+          renderer: areaRenderer,
+          style: (feature) => areaStyle(feature.properties.id),
+          onEachFeature: (feature, layer) => {
+            layer.bindTooltip(feature.properties.name, { sticky: true });
+            layer.on("click", () => toggleArea(feature.properties.id));
+          },
+        }).addTo(areaMap);
+        if (fit && areaLayer.getLayers().length)
+          areaMap.fitBounds(areaLayer.getBounds(), { padding: [18, 18], maxZoom: 9 });
+        setTimeout(() => areaMap.invalidateSize(), 0);
+      }
+      function areaStyle(id) {
+        const selected = selectedAreaIds.has(id);
+        return {
+          color: selected ? "#155eef" : "#667085",
+          weight: selected ? 2.5 : 1,
+          fillColor: selected ? "#84adff" : "#d0d5dd",
+          fillOpacity: selected ? 0.34 : 0.08,
+        };
+      }
+      function toggleArea(id) {
+        if (selectedAreaIds.has(id)) selectedAreaIds.delete(id);
+        else selectedAreaIds.add(id);
+        document
+          .querySelector(`.area-row[data-area-id="${CSS.escape(id)}"]`)
+          ?.setAttribute("aria-pressed", selectedAreaIds.has(id));
+        areaLayer?.eachLayer((layer) => {
+          if (layer.feature?.properties?.id === id) layer.setStyle(areaStyle(id));
+        });
+        updateBatchButton();
+      }
+      function updateBatchButton() {
+        const count = selectedAreaIds.size;
+        const button = $("#batchBtn");
+        $("#areaSelectionCount").textContent = count
+          ? `Bước 1 hoàn tất: đã chọn ${fmt.format(count)} khu vực`
+          : "Bước 1: Chưa chọn khu vực";
+        $("#clearAreaSelection").disabled = count === 0;
+        button.textContent = count
+          ? `Tạo đơn cho ${fmt.format(count)} khu vực`
+          : "Chọn khu vực trước";
+        button.disabled = count === 0;
+      }
+      $("#clearAreaSelection").onclick = () => {
+        selectedAreaIds.clear();
+        renderAreaList();
+        areaLayer?.eachLayer((layer) => layer.setStyle(areaStyle(layer.feature?.properties?.id)));
+      };
+      $("#areaList").onclick = (event) => {
+        const button = event.target.closest("[data-area-id]");
+        if (button) toggleArea(button.dataset.areaId);
+      };
+      $("#provinceFilter").onchange = () => refreshAreaList({ geometry: true, fit: true });
+      $("#areaSearch").oninput = () => {
+        clearTimeout(areaSearchTimer);
+        areaSearchTimer = setTimeout(() => refreshAreaList(), 220);
+      };
+      $("#importVn").onclick = async () => {
+        const button = $("#importVn"),
+          log = $("#importLog");
+        button.disabled = true;
+        log.hidden = false;
+        log.textContent = "";
+        setAreaMessage(
+          "Đang nạp catalog Việt Nam. Việc này chạy nền và chỉ cần làm lại khi muốn cập nhật dữ liệu."
+        );
+        try {
+          const started = await json("/areas/vn/import", { method: "POST" });
+          const stream = new EventSource(`/areas/vn/import/${started.id}/stream`);
+          stream.onmessage = (event) => {
+            log.textContent += event.data.replace(/\\n/g, "\n") + "\n";
+            log.scrollTop = log.scrollHeight;
+          };
+          stream.addEventListener("status", async (event) => {
+            stream.close();
+            button.disabled = false;
+            if (event.data !== "finished")
+              return setAreaMessage("Không thể nhập catalog. Xem log để thử lại.", "error");
+            $("#provinceFilter").dataset.loaded = "";
+            $("#provinceFilter").innerHTML = '<option value="">Toàn Việt Nam</option>';
+            areaCatalog = [];
+            await loadVietnamAreas();
+            setAreaMessage("Catalog đã sẵn sàng. Bạn có thể chọn khu vực để tạo đơn.", "success");
+          });
+        } catch (error) {
+          button.disabled = false;
+          setAreaMessage(error.message, "error");
+        }
+      };
+      $("#batchForm").onsubmit = async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.target),
+          button = $("#batchBtn");
+        button.disabled = true;
+        try {
+          const result = await json("/jobs/batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              areaIds: Array.from(selectedAreaIds),
+              keywords: form.get("keywords"),
+              STEP_METERS: Number(form.get("STEP_METERS")),
+            }),
+          });
+          setAreaMessage(
+            `Đã tạo ${result.count} đơn quét; các đơn vượt giới hạn chạy đồng thời sẽ vào hàng chờ.`,
+            "success"
+          );
+          selectedAreaIds.clear();
+          renderAreaList();
+          renderAreaMap({
+            type: "FeatureCollection",
+            features: areaLayer ? areaLayer.toGeoJSON().features : [],
+          });
+        } catch (error) {
+          setAreaMessage(error.message, "error");
+        } finally {
+          updateBatchButton();
+        }
+      };
       $("#jobForm").onsubmit = async (e) => {
         e.preventDefault();
         const f = new FormData(e.target),

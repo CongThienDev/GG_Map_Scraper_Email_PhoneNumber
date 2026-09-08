@@ -4,8 +4,51 @@ const path = require("path");
 const ExcelJS = require("exceljs");
 const { parse: csvParse } = require("csv-parse/sync");
 
-function createJobRoutes({ scraperService }) {
+function createJobRoutes({ scraperService, areaCatalogService }) {
   const router = express.Router();
+
+  router.post("/jobs/batch", (req, res) => {
+    if (!areaCatalogService) return res.status(501).json({ error: "Area catalog is unavailable" });
+    const ids = Array.isArray(req.body?.areaIds)
+      ? [...new Set(req.body.areaIds.filter((id) => typeof id === "string"))].slice(0, 300)
+      : [];
+    const keywords = req.body?.keywords;
+    const stepMeters = req.body?.STEP_METERS;
+    if (!ids.length) return res.status(400).json({ error: "Hãy chọn ít nhất một khu vực" });
+
+    const areas = areaCatalogService.getAreasByIds(ids);
+    if (areas.length !== ids.length) {
+      return res.status(400).json({ error: "Một hoặc nhiều khu vực không hợp lệ" });
+    }
+
+    const missingPolygon = areas.find((area) => !areaCatalogService.polygonPathFor(area));
+    if (missingPolygon) {
+      return res.status(409).json({
+        error: `Chưa có polygon đầy đủ cho ${missingPolygon.name}. Hãy import lại catalog Việt Nam.`,
+      });
+    }
+
+    const created = [];
+    for (const area of areas) {
+      const result = scraperService.createJob({
+        city: area.name,
+        country: "Việt Nam",
+        keywords,
+        STEP_METERS: stepMeters,
+        POLYGON_PATH: areaCatalogService.polygonPathFor(area),
+      });
+      if (result.error)
+        return res.status(400).json({ error: result.error, created: created.length });
+      created.push({
+        id: result.job.id,
+        areaId: area.id,
+        city: area.name,
+        queued: Boolean(result.queued),
+        queuePosition: result.queuePosition || null,
+      });
+    }
+    return res.status(201).json({ created, count: created.length });
+  });
 
   router.post("/jobs", (req, res) => {
     const created = scraperService.createJob(req.body || {});

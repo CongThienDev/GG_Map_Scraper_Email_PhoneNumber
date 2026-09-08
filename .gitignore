@@ -144,3 +144,6 @@ vite.config.ts.timestamp-*
 
 # Puppeteer runtime profile/cache
 tmp/
+
+# Imported boundary catalogs are generated locally and can be recreated from the UI.
+data/vietnam/

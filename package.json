@@ -8,6 +8,7 @@
     "start": "node server.js",
     "start:pm2": "pm2 start server.js -n maps-ui && pm2 save",
     "polygon:city": "node scripts/fetch_polygon_city.js",
+    "areas:vn": "node scripts/import_vietnam_areas.js",
     "test": "jest --runInBand",
     "lint": "eslint server.js app __tests__",
     "lint:fix": "eslint server.js app __tests__ --fix",
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "csv-parse": "^5.5.6",
     "csv-writer": "^1.6.0",
