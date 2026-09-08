@@ -90,7 +90,7 @@ const POLYGON_DIR = path.join(__dirname, '..', 'Polygon_List');
 const RESULTS_DIR = env('RESULTS_DIR', pathSafe(path.join(__dirname, '..', 'results')));
 const CSV_PATH = env('CSV_PATH', pathSafe(path.join(
   RESULTS_DIR,
-  `${env('CSV_BASENAME', `${CITY}_${(KEYWORDS[0] || 'keyword').replace(/\\W+/g, '_')}.csv`)}`
+  `${env('CSV_BASENAME', `${CITY}_${(KEYWORDS[0] || 'keyword').replace(/\W+/g, '_')}.csv`)}`
 )));
 const SEEN_PATH = env('SEEN_PATH', pathSafe(path.join(RESULTS_DIR, 'seen_cache.json')));
 const CENTERS_PATH = env('CENTERS_PATH', path.join(RESULTS_DIR, 'centers.json'));
@@ -148,7 +148,7 @@ function primeSeenFromCSV() {
   try {
     const raw = fs.readFileSync(CSV_PATH, 'utf8').split('\n').slice(1); // bỏ header
     raw.forEach(line => {
-      const match = line.match(/https?:[^,\\s]+google[^,\\s]+/i);
+      const match = line.match(/https?:[^,\s]+google[^,\s]+/i);
       if (match) {
         const key = makeKey({ url: match[0] });
         if (key) seenKeys.add(key);
@@ -168,6 +168,9 @@ const csvWriter = createCsvWriter({
     { id: 'address', title: 'Address' },
     { id: 'phone', title: 'Phone Number' },
     { id: 'website', title: 'Website' },
+    { id: 'social', title: 'Social' },
+    { id: 'rating', title: 'Rating' },
+    { id: 'review_count', title: 'Review Count' },
     { id: 'category', title: 'category' },
     { id: 'city', title: 'City' },
     { id: 'google_maps_url', title: 'google_maps_url' },
@@ -470,7 +473,7 @@ function extractCid(u = '') {
 function normalizeDomain(u = '') {
   try {
     const host = new URL(u).hostname || '';
-    return host.replace(/^www\\./i, '').toLowerCase();
+    return host.replace(/^www\./i, '').toLowerCase();
   } catch { return ''; }
 }
 
@@ -478,7 +481,7 @@ function makeKey({ url = '', website = '', phone = '' }) {
   const cid = extractCid(url);
   if (cid) return `cid:${cid}`;
   const dom = normalizeDomain(website);
-  const phoneClean = (phone || '').replace(/\\D+/g, '');
+  const phoneClean = (phone || '').replace(/\D+/g, '');
   if (dom && phoneClean) return `domtel:${dom}:${phoneClean}`;
   if (dom) return `dom:${dom}`;
   if (phoneClean) return `tel:${phoneClean}`;
@@ -731,20 +734,65 @@ function buildGridCentersInPolygon(multiPoly, STEP_METERS = 2000) {
 // ====== scraping helpers ======
 async function getDetailsFromOpenPanel(page) {
   return await page.evaluate(() => {
-    const out = { name: '', address: '', phone: '', website: '' };
-    out.name = document.querySelector('h1')?.innerText || '';
-    const byLabel = Array.from(document.querySelectorAll('a')).find(a => {
-      const t = (a.innerText || a.getAttribute('aria-label') || '').toLowerCase();
-      return t.includes('website') || t.includes('webseite') || t.includes('trang web');
-    });
-    if (byLabel?.href) out.website = byLabel.href;
-    if (!out.website) {
-      const ok = Array.from(document.querySelectorAll('a[href]')).find(a => {
-        const href = a.getAttribute('href') || '';
-        if (!/^https?:/i.test(href) || /^tel:/i.test(href)) return false;
-        try { return !/\.google\./i.test(new URL(href).hostname); } catch { return false; }
+    const out = { name: '', address: '', phone: '', website: '', social: '', rating: '', review_count: '' };
+    // Tên: ưu tiên div[role="main"][aria-label] (bền hơn h1 — trang list có nhiều h1 gây lấy nhầm "Results")
+    const mainPanel = document.querySelector('div[role="main"][aria-label]');
+    out.name = (mainPanel?.getAttribute('aria-label') || document.querySelector('h1')?.innerText || '').trim();
+
+    // Rating: aria-label dạng "4.8 stars" (tránh histogram "5 stars, 665 reviews")
+    const starEl = Array.from(document.querySelectorAll('[aria-label]'))
+      .map(e => (e.getAttribute('aria-label') || '').trim())
+      .find(t => /^[\d.,]+\s+stars?$/i.test(t));
+    if (starEl) {
+      const m = starEl.match(/^([\d.,]+)/);
+      if (m) out.rating = m[1].replace(',', '.');
+    }
+    if (!out.rating) {
+      const rtSpan = Array.from(document.querySelectorAll('span'))
+        .map(s => (s.innerText || '').trim())
+        .find(t => /^\d[.,]\d$/.test(t));
+      if (rtSpan) out.rating = rtSpan.replace(',', '.');
+    }
+
+    // Số review: aria-label dạng "730 reviews" (tổng, tránh dòng histogram "5 stars, 665 reviews")
+    const revLabel = Array.from(document.querySelectorAll('[aria-label]'))
+      .map(e => (e.getAttribute('aria-label') || '').trim())
+      .find(t => /^[\d.,]+\s+reviews?$/i.test(t));
+    if (revLabel) {
+      const m = revLabel.match(/^([\d.,]+)/);
+      if (m) out.review_count = m[1].replace(/[.,]/g, '');
+    }
+
+    // Website: ưu tiên nút chính chủ của Google Maps (data-item-id="authority"),
+    // rồi tới link có aria-label "Website". KHÔNG dùng fallback "link non-Google đầu tiên"
+    // vì nó hay vớ nhầm nút Grab/WhatsApp/Facebook.
+    const JUNK_HOST = /(^|\.)(grab\.com|wa\.me|whatsapp\.com|facebook\.com|fb\.com|instagram\.com|zalo\.me|booking\.com|tripadvisor\.[a-z.]+|foody\.vn|shopee\.[a-z.]+|linktr\.ee|t\.me|tiktok\.com|youtube\.com|twitter\.com|x\.com|threads\.net|pinterest\.[a-z.]+)$/i;
+    const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./i, '').toLowerCase(); } catch { return ''; } };
+
+    let webHref = '';
+    const authority = document.querySelector('a[data-item-id="authority"]');
+    if (authority?.href) webHref = authority.href;
+    if (!webHref) {
+      const byLabel = Array.from(document.querySelectorAll('a[href]')).find(a => {
+        const t = (a.getAttribute('aria-label') || '').toLowerCase();
+        return /^https?:/i.test(a.getAttribute('href') || '') &&
+          (t.includes('website') || t.includes('webseite') || t.includes('trang web'));
       });
-      out.website = ok?.href || '';
+      if (byLabel?.href) webHref = byLabel.href;
+    }
+
+    // Phân loại: link mạng xã hội/đặt hàng -> cột social; còn lại -> website
+    if (webHref) {
+      if (JUNK_HOST.test(hostOf(webHref))) out.social = webHref;
+      else out.website = webHref;
+    }
+    // Nếu chưa có social, thử bắt 1 link mạng xã hội trên panel để lưu riêng (không nhét vào website)
+    if (!out.social) {
+      const soc = Array.from(document.querySelectorAll('a[href]')).find(a => {
+        const href = a.getAttribute('href') || '';
+        return /^https?:/i.test(href) && JUNK_HOST.test(hostOf(href));
+      });
+      if (soc?.href) out.social = soc.href;
     }
     const tel = document.querySelector('a[href^="tel:"]');
     if (tel) out.phone = (tel.getAttribute('href') || '').replace(/^tel:/, '');
@@ -981,7 +1029,8 @@ if (/before you continue to google/i.test(nameLower)) {
 STT += 1;
 await enqueueCsvRow({
   stt: STT, name: det.name || '', address: det.address || '', phone: det.phone || '',
-  website: det.website || '', category: CURRENT_KEYWORD, city: CITY,
+  website: det.website || '', social: det.social || '', rating: det.rating || '', review_count: det.review_count || '',
+  category: CURRENT_KEYWORD, city: CITY,
   google_maps_url: placeUrl, center_lat: CURRENT_CELL.lat, center_lng: CURRENT_CELL.lng
 });
 console.log(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'}`);
@@ -1049,7 +1098,8 @@ if (key && seenKeys.has(key)) {
 STT += 1;
 await enqueueCsvRow({
   stt: STT, name: det.name || '', address: det.address || '', phone: det.phone || '',
-  website: det.website || '', category: CURRENT_KEYWORD, city: CITY,
+  website: det.website || '', social: det.social || '', rating: det.rating || '', review_count: det.review_count || '',
+  category: CURRENT_KEYWORD, city: CITY,
   google_maps_url: url, center_lat: CURRENT_CELL.lat, center_lng: CURRENT_CELL.lng
 });
 if (key) seenKeys.add(key);
