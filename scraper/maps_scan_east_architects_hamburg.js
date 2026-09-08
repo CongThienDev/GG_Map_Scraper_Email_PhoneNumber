@@ -1432,7 +1432,13 @@ async function openEachPlaceAndGrab(page, links) {
       }
       if (STT % 25 === 0) {
         await flushCsvRows(true);
-        saveCheckpoint(CURRENT_CELL_IDX, { processedCount: STT, note: "periodic-save" });
+        saveCheckpoint(CURRENT_CELL_IDX, {
+          lastCenter: CURRENT_CELL,
+          processedCount: STT,
+          totalCells: TOTAL_CELLS,
+          currentCell: CURRENT_CELL_IDX + 1,
+          note: "periodic-save",
+        });
       }
     } catch (err) {
       if (/Connection closed/i.test(String(err))) {

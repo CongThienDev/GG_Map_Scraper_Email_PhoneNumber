@@ -127,8 +127,9 @@ function createJobRoutes({ scraperService, areaCatalogService }) {
     if (!job) return res.status(404).end();
 
     res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
     let idx = Math.max(0, job.logs.length - 100);
@@ -139,9 +140,11 @@ function createJobRoutes({ scraperService, areaCatalogService }) {
         res.write(`data: ${line}\n\n`);
         idx += 1;
       }
+      res.flush?.();
 
       if (job.status === "finished" || job.status === "failed") {
         res.write(`event: status\ndata: ${job.status}\n\n`);
+        res.flush?.();
         clearInterval(intervalId);
         res.end();
       }
