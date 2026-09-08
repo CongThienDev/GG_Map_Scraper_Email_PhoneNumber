@@ -18,6 +18,7 @@ function createJobRoutes({ scraperService }) {
       queuePosition,
       ...job.resultsPaths,
       csvUrl: `/results/${path.relative(scraperService.resultsBase, job.resultsPaths.CSV_PATH)}`,
+      checkpointUrl: `/results/${path.relative(scraperService.resultsBase, job.resultsPaths.CHECKPOINT_PATH)}`,
       queued: Boolean(queued),
     });
   });

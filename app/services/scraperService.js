@@ -204,6 +204,7 @@ function createScraperService({ config, store }) {
           KEYWORDS: j.env.KEYWORDS,
           ...j.resultsPaths,
           csvUrl: `/results/${path.relative(resultsBase, j.resultsPaths.CSV_PATH)}`,
+          checkpointUrl: `/results/${path.relative(resultsBase, j.resultsPaths.CHECKPOINT_PATH)}`,
           checkpointSummary: {
             processedCount: ck.processedCount || 0,
             currentCell: ck.currentCell || ck.nextCellIndex || 0,

@@ -18,7 +18,10 @@ describe("jobRoutes", () => {
         job: {
           id: "1",
           status: "running",
-          resultsPaths: { CSV_PATH: "/tmp/results/a.csv" },
+          resultsPaths: {
+            CSV_PATH: "/tmp/results/a.csv",
+            CHECKPOINT_PATH: "/tmp/results/checkpoint_a.json",
+          },
         },
       }),
     };
@@ -31,6 +34,7 @@ describe("jobRoutes", () => {
     expect(res.status).toBe(200);
     expect(res.body.id).toBe("1");
     expect(res.body.queued).toBe(false);
+    expect(res.body.checkpointUrl).toBe("/results/checkpoint_a.json");
     expect(scraperService.createJob).toHaveBeenCalledTimes(1);
   });
 

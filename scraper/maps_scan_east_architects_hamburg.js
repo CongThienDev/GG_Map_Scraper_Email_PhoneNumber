@@ -66,7 +66,6 @@ const CELL_TIME_BUDGET_MS = envInt('CELL_TIME_BUDGET_MS', 210000);
 const SCROLL_FAST_RUNS = envInt('SCROLL_FAST_RUNS', 30);
 const SCROLL_FAST_DELAY = envInt('SCROLL_FAST_DELAY', 220);
 const SCROLL_SLOW_DELAY = envInt('SCROLL_SLOW_DELAY', 800);
-const STAGNANT_LIMIT_FAST = envInt('STAGNANT_LIMIT_FAST', 6);
 const STAGNANT_LIMIT_SLOW = envInt('STAGNANT_LIMIT_SLOW', 16);
 // kill/relaunch browser định kỳ để tránh phình RAM
 const BROWSER_MAX_AGE_MS = envInt('BROWSER_MAX_AGE_MS', 30 * 60 * 1000); // mặc định 30 phút để giảm relaunch
@@ -907,9 +906,11 @@ async function getSidebarHandle(page) {
 }
 
 async function scrollListToEnd(page, sidebar) {
-  const countLinks = async () => await sidebar.evaluate(sb => new Set(
-    Array.from(sb.querySelectorAll('a.hfpxzc, a[href*="/maps/place/"], a[href*="/place/"]')).map(a => a.href)
-  ).size);
+  // Google Maps virtualizes its feed; cards scrolled out of view can disappear
+  // from the DOM. Persist discovered URLs outside the DOM while scrolling.
+  const readVisibleLinks = async () => await sidebar.evaluate(sb => Array.from(
+    sb.querySelectorAll('a.hfpxzc, a[href*="/maps/place/"], a[href*="/place/"]')
+  ).map(a => a.href).filter(Boolean));
 
   const bringLastCardToCenter = async () => {
     await page.evaluate(() => {
@@ -926,50 +927,62 @@ async function scrollListToEnd(page, sidebar) {
     });
   };
 
-  let last = await countLinks();
-  console.log(`  initial unique anchors: ${last}`);
+  const links = new Set(await readVisibleLinks());
+  const collectVisibleLinks = async () => {
+    let added = 0;
+    for (const href of await readVisibleLinks()) {
+      if (!links.has(href)) {
+        links.add(href);
+        added += 1;
+      }
+    }
+    return added;
+  };
+
+  console.log(`  initial visible anchors: ${links.size}`);
 
   const t0 = Date.now();
   let stagnant = 0;
+  let stopReason = 'max_scrolls';
 
   for (let i = 0; i < SCROLL_FAST_RUNS; i++) {
     await wheelBit();
     await bringLastCardToCenter();
     await sleep(SCROLL_FAST_DELAY);
 
-    const cur = await countLinks();
-    stagnant = (cur <= last) ? (stagnant + 1) : 0;
-    last = cur;
+    const added = await collectVisibleLinks();
+    stagnant = added === 0 ? stagnant + 1 : 0;
 
-    if (await isEndOfList(page)) break;
-    if (stagnant >= STAGNANT_LIMIT_FAST) break;
-    if (Date.now() - t0 > CELL_TIME_BUDGET_MS) break;
+    if (await isEndOfList(page)) { stopReason = 'end_of_list'; break; }
+    // This phase warms up Maps. It may need several short scrolls before more
+    // cards are appended, so an early no-growth result is not a stop signal.
+    if (Date.now() - t0 > CELL_TIME_BUDGET_MS) { stopReason = 'time_budget'; break; }
   }
 
-  stagnant = 0;
-  for (let i = 0; i < MAX_SCROLLS; i++) {
-    if (Date.now() - t0 > CELL_TIME_BUDGET_MS) break;
+  if (stopReason === 'max_scrolls') stagnant = 0;
+  for (let i = 0; stopReason === 'max_scrolls' && i < MAX_SCROLLS; i++) {
+    if (Date.now() - t0 > CELL_TIME_BUDGET_MS) { stopReason = 'time_budget'; break; }
 
     await wheelBit();
     await bringLastCardToCenter();
     await sleep(SCROLL_SLOW_DELAY);
 
-    const cur = await countLinks();
-    stagnant = (cur <= last) ? (stagnant + 1) : 0;
-    last = cur;
+    const added = await collectVisibleLinks();
+    stagnant = added === 0 ? stagnant + 1 : 0;
 
     const end = await isEndOfList(page);
-    if (end && stagnant >= 2) break;
-    if (stagnant >= STAGNANT_LIMIT_SLOW) break;
+    if (end) { stopReason = 'end_of_list'; break; }
+    if (stagnant >= STAGNANT_LIMIT_SLOW) { stopReason = 'stagnant_list'; break; }
+    if (Date.now() - t0 > CELL_TIME_BUDGET_MS) { stopReason = 'time_budget'; break; }
   }
 
   try { await page.waitForNetworkIdle({ idleTime: 1500, timeout: 8000 }); } catch { }
   await sleep(400);
 
-  const finalCount = await countLinks();
-  log.dbg(`  [DBG] list unique anchors after scroll: ${finalCount}`);
-  console.log(`  list unique anchors after scroll: ${finalCount}`);
-  return finalCount;
+  await collectVisibleLinks();
+  const durationMs = Date.now() - t0;
+  console.log(`  [SCROLL] reason=${stopReason} urls=${links.size} duration_ms=${durationMs}`);
+  return { links: Array.from(links), count: links.size, stopReason, durationMs };
 }
 
 let CURRENT_CELL_IDX = 0;
@@ -1209,6 +1222,7 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
   for (let idx = startIdx; idx < centers.length; idx++) {
   const sttCellBefore = STT;
   let anchorsThisCell = 0;
+  const keywordScans = [];
   // nếu browser đã quá tuổi thì relaunch
   if (Date.now() - BROWSER_LAUNCHED_AT > BROWSER_MAX_AGE_MS) {
     console.log('[INFO] Browser too old, relaunching to free RAM…');
@@ -1263,17 +1277,19 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
       if (!sidebar) { console.log('  ! no sidebar'); continue; }
 
       await disableUpdateWhenMapMoves(page);
-      const anchorCount = await scrollListToEnd(page, sidebar);
-      anchorsThisCell += anchorCount;
+      const scan = await scrollListToEnd(page, sidebar);
+      anchorsThisCell += scan.count;
+      keywordScans.push({
+        keyword: kw,
+        urls: scan.count,
+        stopReason: scan.stopReason,
+        durationMs: scan.durationMs
+      });
       await sleep(400);
 
-      const links = await sidebar.evaluate((sb, maxLinksPerCell) => {
-        const out = [];
-        sb.querySelectorAll('a.hfpxzc, a[jsaction][href*="/maps/place/"], a[href*="/maps/place/"], a[href*="/place/"]')
-          .forEach(a => a.href && out.push(a.href));
-        const uniq = Array.from(new Set(out));
-        return (maxLinksPerCell && maxLinksPerCell > 0) ? uniq.slice(0, maxLinksPerCell) : uniq;
-      }, MAX_LINKS_PER_CELL);
+      const links = (MAX_LINKS_PER_CELL && MAX_LINKS_PER_CELL > 0)
+        ? scan.links.slice(0, MAX_LINKS_PER_CELL)
+        : scan.links;
       console.log(`  [DBG] ${kw} → links collected = ${links.length}`);
 
       // mở từng URL và ghi CSV nếu chưa trùng
@@ -1291,11 +1307,14 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
       saveCheckpoint(idx + 1, {
         lastCenter: CURRENT_CELL,
         lastKeyword: kw,
-        anchorsCollected: anchorCount,
+        anchorsCollected: scan.count,
+        scrollStopReason: scan.stopReason,
+        scrollDurationMs: scan.durationMs,
+        keywordScans,
         rowsWritten: wrote,
         processedCount: STT
       });
-      console.log(`  [SUMMARY] kw="${kw}" anchors=${anchorCount} rowsWritten=${wrote} total=${STT}`);
+      console.log(`  [SUMMARY] kw="${kw}" anchors=${scan.count} rowsWritten=${wrote} total=${STT}`);
     }
 
     const rowsThisCell = STT - sttCellBefore;
@@ -1308,7 +1327,9 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
       gridRows: cellSummaries,
       gridRowsString,
       totalCells: TOTAL_CELLS,
-      currentCell: idx + 1
+      currentCell: idx + 1,
+      keywordScans,
+      lastScroll: keywordScans[keywordScans.length - 1] || null
     });
   }
 
