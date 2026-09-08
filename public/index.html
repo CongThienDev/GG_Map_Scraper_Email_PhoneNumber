@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Maps Prospects</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
       :root {
         --ink: #10213f;
@@ -322,6 +323,25 @@
         flex-wrap: wrap;
         color: var(--muted);
       }
+      .detail-maps {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 20px;
+      }
+      .detail-map {
+        height: 290px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      #gridCanvas {
+        width: 100%;
+        height: 290px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+      }
       @media (max-width: 720px) {
         .wrap,
         main {
@@ -356,6 +376,9 @@
         .card {
           padding: 22px 18px;
         }
+        .detail-maps {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -388,6 +411,16 @@
             <div class="grid">
               <label>Quốc gia<input name="country" value="Việt Nam" required /></label
               ><label>Thành phố<input name="city" placeholder="Ví dụ: Hội An" required /></label
+              ><label class="full"
+                >Khoảng cách giữa các grid (m)<span class="hint"
+                  >Nhỏ hơn giúp phủ kỹ hơn nhưng chạy lâu hơn.</span
+                ><input
+                  name="STEP_METERS"
+                  type="number"
+                  min="100"
+                  step="100"
+                  value="1200"
+                  required /></label
               ><label class="full"
                 >Ngành nghề cần tìm<span class="hint"
                   >Mỗi dòng hoặc dấu phẩy là một nhóm tìm kiếm.</span
@@ -468,14 +501,26 @@
       </div>
       <div class="dbody">
         <div class="summary" id="sum"></div>
+        <div class="detail-maps">
+          <div>
+            <p class="hint">Bản đồ khu vực và grid</p>
+            <div class="detail-map" id="progressMap"></div>
+          </div>
+          <div>
+            <p class="hint">Sơ đồ grid</p>
+            <canvas id="gridCanvas" width="720" height="580"></canvas>
+          </div>
+        </div>
         <pre class="log" id="logs">Đang tải log...</pre>
       </div>
     </dialog>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
       const $ = (s) => document.querySelector(s);
       let data = [],
         stream,
         timer;
+      let leafletMap, markers, polygonLayer;
       const esc = (s) =>
         String(s || "").replace(
           /[&<>"']/g,
@@ -515,6 +560,7 @@
                 city: f.get("city").trim(),
                 country: f.get("country").trim(),
                 keywords: f.get("keywords"),
+                STEP_METERS: Number(f.get("STEP_METERS")),
               }),
             }),
             j = await r.json();
@@ -641,6 +687,82 @@
         const x = await r.json();
         $("#sum").innerHTML =
           `<span>Grid: <b>${x.currentCell || 0} / ${x.totalCells || "?"}</b></span><span>Doanh nghiệp: <b>${x.processedCount || 0}</b></span><span>Từ khóa: <b>${esc(x.lastKeyword || "-")}</b></span>`;
+        renderMaps(x);
+      }
+      function renderMaps(x) {
+        const centers = x.centersInline || [],
+          polygon = x.polygonInline;
+        const done = new Set((x.gridRows || []).map((row) => row.cell));
+        if (typeof L !== "undefined") {
+          if (!leafletMap) {
+            leafletMap = L.map("progressMap").setView([15.88, 108.34], 11);
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+              attribution: "&copy; OpenStreetMap",
+            }).addTo(leafletMap);
+            markers = L.layerGroup().addTo(leafletMap);
+          }
+          markers.clearLayers();
+          if (polygonLayer) leafletMap.removeLayer(polygonLayer);
+          if (polygon?.polygon) {
+            polygonLayer = L.polygon(
+              polygon.polygon.map((ring) => ring.map(([lng, lat]) => [lat, lng])),
+              { color: "#155eef", weight: 2, fillOpacity: 0.05 }
+            ).addTo(leafletMap);
+            leafletMap.fitBounds(polygonLayer.getBounds(), { padding: [18, 18] });
+          }
+          centers.forEach((center, index) => {
+            const number = index + 1,
+              current = number === x.currentCell;
+            const color = current ? "#d92d20" : done.has(number) ? "#039855" : "#98a2b3";
+            L.circleMarker([center.lat, center.lng], {
+              radius: current ? 7 : 4,
+              color,
+              fillColor: color,
+              fillOpacity: 0.9,
+            })
+              .bindTooltip(`Grid ${number}`)
+              .addTo(markers);
+          });
+          setTimeout(() => leafletMap.invalidateSize(), 0);
+        }
+        const canvas = $("#gridCanvas"),
+          ctx = canvas.getContext("2d"),
+          points = [];
+        centers.forEach((point) => points.push([point.lat, point.lng]));
+        polygon?.polygon?.forEach((ring) => ring.forEach(([lng, lat]) => points.push([lat, lng])));
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (!points.length) return;
+        const lats = points.map(([lat]) => lat),
+          lngs = points.map(([, lng]) => lng);
+        const minLat = Math.min(...lats),
+          maxLat = Math.max(...lats),
+          minLng = Math.min(...lngs),
+          maxLng = Math.max(...lngs);
+        const toXY = (lat, lng) => [
+          30 + ((lng - minLng) / (maxLng - minLng || 1)) * (canvas.width - 60),
+          canvas.height - 30 - ((lat - minLat) / (maxLat - minLat || 1)) * (canvas.height - 60),
+        ];
+        if (polygon?.polygon) {
+          ctx.strokeStyle = "#155eef";
+          ctx.lineWidth = 2;
+          polygon.polygon.forEach((ring) => {
+            ctx.beginPath();
+            ring.forEach(([lng, lat], i) => {
+              const [px, py] = toXY(lat, lng);
+              i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+            });
+            ctx.stroke();
+          });
+        }
+        centers.forEach((center, index) => {
+          const number = index + 1,
+            [px, py] = toXY(center.lat, center.lng);
+          ctx.fillStyle =
+            number === x.currentCell ? "#d92d20" : done.has(number) ? "#039855" : "#98a2b3";
+          ctx.beginPath();
+          ctx.arc(px, py, number === x.currentCell ? 6 : 4, 0, Math.PI * 2);
+          ctx.fill();
+        });
       }
       function close() {
         if (stream) stream.close();
