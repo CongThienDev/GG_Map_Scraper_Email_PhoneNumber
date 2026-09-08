@@ -64,11 +64,16 @@ describe("scraperService", () => {
     const store = createJobStore();
     const service = createScraperService({ config: makeConfig(tempDir), store });
 
-    const ret = service.createJob({ city: "Hamburg", keywords: "architect,painter" });
+    const ret = service.createJob({
+      city: "Hamburg",
+      country: "Germany",
+      keywords: "architect,painter",
+    });
 
     expect(ret.queued).toBe(false);
     expect(ret.job.status).toBe("running");
     expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn.mock.calls[0][2].env.COUNTRY).toBe("Germany");
 
     child.emit("exit", 0);
     expect(ret.job.status).toBe("finished");
