@@ -50,6 +50,7 @@ function createScraperService({ config, store }) {
   function startJob(job) {
     const {
       CITY,
+      COUNTRY,
       KEYWORDS,
       RESULTS_DIR,
       CSV_PATH,
@@ -71,6 +72,7 @@ function createScraperService({ config, store }) {
     const childEnv = {
       ...process.env,
       CITY,
+      COUNTRY,
       KEYWORDS: KEYWORDS.join("|"),
       RESULTS_DIR,
       CSV_PATH,
@@ -113,6 +115,7 @@ function createScraperService({ config, store }) {
 
   function createJob(body) {
     const city = (body.city || "").trim();
+    const country = (body.country || "").trim();
     let keywords = body.keywords;
     if (typeof keywords === "string") {
       keywords = keywords
@@ -149,6 +152,7 @@ function createScraperService({ config, store }) {
       createdAt: Date.now(),
       env: {
         CITY: city,
+        COUNTRY: country,
         KEYWORDS: keywords,
         RESULTS_DIR: resultsDir,
         CSV_PATH: csvPath,
@@ -196,6 +200,7 @@ function createScraperService({ config, store }) {
           status: j.status,
           createdAt: j.createdAt,
           CITY: j.env.CITY,
+          COUNTRY: j.env.COUNTRY,
           KEYWORDS: j.env.KEYWORDS,
           ...j.resultsPaths,
           csvUrl: `/results/${path.relative(resultsBase, j.resultsPaths.CSV_PATH)}`,
