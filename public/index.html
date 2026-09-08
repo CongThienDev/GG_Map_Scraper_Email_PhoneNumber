@@ -278,6 +278,8 @@
       .failed {
         color: var(--red);
       }
+      .paused,
+      .interrupted,
       .stopping {
         color: var(--amber);
       }
@@ -775,6 +777,8 @@
         queued: "Đang chờ",
         finished: "Hoàn tất",
         failed: "Có lỗi",
+        paused: "Đã tạm dừng",
+        interrupted: "Bị gián đoạn",
         stopping: "Đang dừng",
       };
       function tab(id) {
@@ -1097,8 +1101,12 @@
                   efficiency = bm.earlyDuplicatesSkipped
                     ? ` · tránh ${fmt.format(bm.earlyDuplicatesSkipped)} detail trùng`
                     : "",
+                  resumable = ["failed", "paused", "interrupted"].includes(j.status),
+                  error = j.lastError
+                    ? `<div class="meta error" title="${esc(j.lastError)}">Lỗi: ${esc(j.lastError).slice(0, 180)}</div>`
+                    : "",
                   files = `<div class="file-actions"><a class="btn" href="${j.csvUrl}" target="_blank">CSV</a><a class="btn" href="/jobs/${j.id}/excel" target="_blank">Excel</a><a class="btn" href="${j.checkpointUrl}" target="_blank">Checkpoint</a></div>`;
-                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} · ${esc(j.CITY)}</div><div class="meta">${esc(j.COUNTRY || "Chưa ghi quốc gia")}</div></div><div><div class="meta"><b>${n}${t ? " / " + t : ""}</b> grid · ${c.processedCount || 0} doanh nghiệp${efficiency}</div><div class="track"><div class="bar" style="width:${p}%"></div></div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">Xem chi tiết</button>${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Tạm dừng</button>` : ""}${files}<button class="btn danger" data-a="del" data-id="${j.id}">Xóa</button></div></article>`;
+                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} · ${esc(j.CITY)}</div><div class="meta">${esc(j.COUNTRY || "Chưa ghi quốc gia")}</div>${error}</div><div><div class="meta"><b>${n}${t ? " / " + t : ""}</b> grid · ${c.processedCount || 0} doanh nghiệp${efficiency}</div><div class="track"><div class="bar" style="width:${p}%"></div></div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">Xem chi tiết</button>${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Tạm dừng</button>` : ""}${resumable ? `<button class="btn primary" data-a="resume" data-id="${j.id}">Tiếp tục${t ? ` (${Math.min(n + 1, t)}/${t})` : ""}</button>` : ""}${files}<button class="btn danger" data-a="del" data-id="${j.id}">Xóa</button></div></article>`;
               })
               .join("")
           : '<div class="card" style="max-width:none"><h2>Chưa có đợt quét phù hợp</h2><p class="lead">Tạo đơn quét mới để bắt đầu.</p></div>';
@@ -1111,6 +1119,12 @@
         if (a === "view") return view(id);
         if (a === "stop") {
           await fetch("/jobs/" + id + "/stop", { method: "POST" });
+          return load();
+        }
+        if (a === "resume") {
+          b.disabled = true;
+          const r = await fetch("/jobs/" + id + "/resume", { method: "POST" });
+          if (!r.ok) alert((await r.json()).error || "Không thể tiếp tục job");
           return load();
         }
         if (a === "del" && confirm("Xóa đợt quét này khỏi danh sách?")) {

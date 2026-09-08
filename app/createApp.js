@@ -28,7 +28,7 @@ function createApp(config) {
     loginLimiter,
   });
 
-  const store = createJobStore();
+  const store = createJobStore({ persistencePath: config.jobsPath });
   const scraperService = createScraperService({ config, store });
   const polygonService = createPolygonService({ rootDir: config.rootDir });
   const areaCatalogService = createAreaCatalogService({ rootDir: config.rootDir });

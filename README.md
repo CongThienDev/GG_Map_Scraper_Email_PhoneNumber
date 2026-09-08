@@ -2,6 +2,23 @@
 
 Node.js app to run multi-job Google Maps scraping with a web UI, job queue, live logs, and checkpoint/resume.
 
+## Resume after an error or restart
+
+Each job saves its configuration in `data/jobs.json` and its crawl state in the job's
+`checkpoint_*.json`. When a worker fails, the **Đợt quét** screen shows the latest worker
+error and a **Tiếp tục** button. It starts the same job again with the original CSV, browser
+profile, polygon, and checkpoint, so the scraper continues at `nextCellIndex` rather than
+starting over. A deliberate **Tạm dừng** is resumable too.
+
+After the server restarts, jobs that were running or queued are marked **Bị gián đoạn** and can
+be continued. The metadata file contains no crawl output and is intentionally ignored by Git.
+
+For local macOS runs, prevent system sleep (screen lock is fine) with:
+
+```bash
+caffeinate -i -s npm start
+```
+
 ## Tech stack
 
 - Node.js + Express

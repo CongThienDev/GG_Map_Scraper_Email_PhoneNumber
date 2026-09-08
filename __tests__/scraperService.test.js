@@ -143,7 +143,7 @@ describe("scraperService", () => {
     expect(progress.polygonInline.city).toBe("Cologne");
   });
 
-  test("stopJob marks queued job as failed", () => {
+  test("stopJob marks queued job as paused", () => {
     const child = makeFakeChild();
     spawn.mockReturnValue(child);
 
@@ -158,8 +158,49 @@ describe("scraperService", () => {
 
     const ret = service.stopJob(second.job.id);
 
-    expect(ret.status).toBe("failed");
-    expect(second.job.status).toBe("failed");
+    expect(ret.status).toBe("paused");
+    expect(second.job.status).toBe("paused");
+  });
+
+  test("resumes a failed job with its existing checkpoint and output paths", () => {
+    const firstChild = makeFakeChild();
+    const resumedChild = makeFakeChild();
+    spawn.mockReturnValueOnce(firstChild).mockReturnValueOnce(resumedChild);
+
+    const store = createJobStore();
+    const service = createScraperService({ config: makeConfig(tempDir), store });
+    const { job } = service.createJob({ city: "Hội An", keywords: "nails" });
+    const checkpointPath = job.resultsPaths.CHECKPOINT_PATH;
+    const csvPath = job.resultsPaths.CSV_PATH;
+    fs.writeFileSync(checkpointPath, JSON.stringify({ nextCellIndex: 12 }), "utf8");
+
+    firstChild.stderr.emit("data", "Chrome closed unexpectedly");
+    firstChild.emit("exit", 1);
+    const ret = service.resumeJob(job.id);
+
+    expect(ret.queued).toBe(false);
+    expect(job.status).toBe("running");
+    expect(job.lastError).toBeNull();
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(spawn.mock.calls[1][2].env.CHECKPOINT_PATH).toBe(checkpointPath);
+    expect(spawn.mock.calls[1][2].env.CSV_PATH).toBe(csvPath);
+  });
+
+  test("restores a running job as interrupted after a server restart", () => {
+    const child = makeFakeChild();
+    spawn.mockReturnValue(child);
+    const config = makeConfig(tempDir);
+    const persistencePath = path.join(tempDir, "data", "jobs.json");
+    const firstStore = createJobStore({ persistencePath });
+    const service = createScraperService({ config, store: firstStore });
+    const { job } = service.createJob({ city: "Hội An", keywords: "spa" });
+
+    const restoredStore = createJobStore({ persistencePath });
+    const restored = restoredStore.getJob(job.id);
+
+    expect(restored.status).toBe("interrupted");
+    expect(restored.lastError).toMatch(/khởi động lại/);
+    expect(restored.resultsPaths.CHECKPOINT_PATH).toBe(job.resultsPaths.CHECKPOINT_PATH);
   });
 
   test("removeJob kills running process and removes job from store", () => {

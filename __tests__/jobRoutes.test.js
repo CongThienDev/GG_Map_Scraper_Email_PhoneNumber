@@ -118,4 +118,15 @@ describe("jobRoutes", () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toMatch(/cannot kill process/);
   });
+
+  test("POST /jobs/:id/resume continues a resumable job", async () => {
+    const scraperService = {
+      resumeJob: jest.fn().mockReturnValue({ job: { id: "1", status: "running" }, queued: false }),
+    };
+    const app = createTestApp(scraperService);
+    const res = await request(app).post("/jobs/1/resume");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id: "1", status: "running", queued: false });
+  });
 });

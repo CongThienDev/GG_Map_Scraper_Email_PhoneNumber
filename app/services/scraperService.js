@@ -11,6 +11,79 @@ function createScraperService({ config, store }) {
     throw new Error(`Không thấy scraper: ${scriptPath}`);
   }
 
+  function restoreUntrackedJobs() {
+    const knownCheckpoints = new Set(
+      store
+        .allJobs()
+        .map((job) => job.resultsPaths?.CHECKPOINT_PATH)
+        .filter(Boolean)
+    );
+    for (const entry of fs.readdirSync(resultsBase, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const resultsDir = path.join(resultsBase, entry.name);
+      const checkpointPath = fs
+        .readdirSync(resultsDir)
+        .find((name) => name.startsWith("checkpoint_") && name.endsWith(".json"));
+      if (!checkpointPath) continue;
+
+      const fullCheckpointPath = path.join(resultsDir, checkpointPath);
+      if (knownCheckpoints.has(fullCheckpointPath)) continue;
+      const checkpoint = store.readJsonCached(fullCheckpointPath, null);
+      if (!checkpoint?.city || !Array.isArray(checkpoint.keywords) || !checkpoint.keywords.length) {
+        continue;
+      }
+
+      const csvName = fs.readdirSync(resultsDir).find((name) => name.endsWith(".csv"));
+      const profileName = fs
+        .readdirSync(resultsDir, { withFileTypes: true })
+        .find((child) => child.isDirectory() && child.name.startsWith(".profile"))?.name;
+      const nextCellIndex = Number(checkpoint.nextCellIndex) || 0;
+      const totalCells = Number(checkpoint.totalCells) || 0;
+      const complete = totalCells > 0 && nextCellIndex >= totalCells;
+      const id = `legacy-${sanitize(entry.name)}`;
+      store.addJob({
+        id,
+        status: complete ? "finished" : "interrupted",
+        createdAt: fs.statSync(resultsDir).birthtimeMs,
+        lastError: complete
+          ? null
+          : "Job cũ được khôi phục từ checkpoint. Có thể tiếp tục từ vị trí đã lưu.",
+        logs: [],
+        env: {
+          CITY: checkpoint.city,
+          COUNTRY: "",
+          KEYWORDS: checkpoint.keywords,
+          RESULTS_DIR: resultsDir,
+          CSV_PATH: csvName ? path.join(resultsDir, csvName) : path.join(resultsDir, "results.csv"),
+          CHECKPOINT_PATH: fullCheckpointPath,
+          PROFILE_DIR: profileName
+            ? path.join(resultsDir, profileName)
+            : path.join(resultsDir, ".profile"),
+          STEP_METERS: defaults.stepMeters,
+          MAX_CELLS: defaults.maxCells,
+          MAX_LINKS_PER_CELL: defaults.maxLinksPerCell,
+          RESET_EVERY_CELLS: defaults.resetEveryCells,
+          BROWSER_MAX_AGE_MS: defaults.browserMaxAgeMs,
+          HEADLESS: defaults.headless,
+          POLYGON_PATH: path.join(resultsDir, "polygon_used.json"),
+          FALLBACK_RADIUS_METERS: defaults.fallbackRadiusMeters,
+          ALLOW_ROUGH_BBOX: defaults.allowRoughBbox,
+          CENTERS_PATH: path.join(resultsDir, "centers.json"),
+          POLYGON_OUT_PATH: path.join(resultsDir, "polygon_used.json"),
+        },
+        resultsPaths: {
+          RESULTS_DIR: resultsDir,
+          CSV_PATH: csvName ? path.join(resultsDir, csvName) : path.join(resultsDir, "results.csv"),
+          CHECKPOINT_PATH: fullCheckpointPath,
+          CENTERS_PATH: path.join(resultsDir, "centers.json"),
+          POLYGON_OUT_PATH: path.join(resultsDir, "polygon_used.json"),
+        },
+      });
+    }
+  }
+
+  restoreUntrackedJobs();
+
   function currentRunning() {
     return store.allJobs().filter((j) => j.status === "running").length;
   }
@@ -36,6 +109,7 @@ function createScraperService({ config, store }) {
     if (job.logs.length > 2000) {
       job.logs.splice(0, job.logs.length - 500);
     }
+    if (stream === "stderr") job.stderrTail = `${job.stderrTail || ""}${line}`.slice(-4000);
   }
 
   function startNextFromQueue() {
@@ -95,20 +169,45 @@ function createScraperService({ config, store }) {
       POLYGON_OUT_PATH,
     };
 
-    const child = spawn("node", [scriptPath], {
-      env: childEnv,
-      cwd: path.dirname(scriptPath),
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    let child;
+    try {
+      child = spawn("node", [scriptPath], {
+        env: childEnv,
+        cwd: path.dirname(scriptPath),
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      job.status = "failed";
+      job.lastError = `Không thể khởi động worker: ${error.message}`;
+      store.persist();
+      return;
+    }
 
     job.child = child;
     job.status = "running";
+    job.startedAt = Date.now();
+    job.finishedAt = null;
+    job.lastError = null;
+    job.stderrTail = "";
+    job.stopRequested = false;
+    store.persist();
 
     child.stdout.on("data", (buf) => pushLog(job, buf.toString(), "stdout"));
     child.stderr.on("data", (buf) => pushLog(job, buf.toString(), "stderr"));
-    child.on("exit", (code) => {
-      job.status = code === 0 ? "finished" : "failed";
-      pushLog(job, `Process exited with code ${code}`, "exit");
+    child.on("error", (error) => {
+      job.lastError = `Worker error: ${error.message}`;
+      pushLog(job, `${job.lastError}\n`, "error");
+    });
+    child.on("exit", (code, signal) => {
+      job.finishedAt = Date.now();
+      if (job.stopRequested) job.status = "paused";
+      else job.status = code === 0 ? "finished" : "failed";
+      if (job.status === "failed") {
+        job.lastError =
+          job.stderrTail?.trim() || `Worker dừng với mã ${code}${signal ? ` (${signal})` : ""}.`;
+      }
+      pushLog(job, `Process exited with code ${code}${signal ? `, signal ${signal}` : ""}`, "exit");
+      store.persist();
       startNextFromQueue();
     });
   }
@@ -171,6 +270,8 @@ function createScraperService({ config, store }) {
         POLYGON_OUT_PATH: polygonOutPath,
       },
       logs: [],
+      lastError: null,
+      stderrTail: "",
       resultsPaths: {
         RESULTS_DIR: resultsDir,
         CSV_PATH: csvPath,
@@ -199,6 +300,9 @@ function createScraperService({ config, store }) {
           id: j.id,
           status: j.status,
           createdAt: j.createdAt,
+          startedAt: j.startedAt || null,
+          finishedAt: j.finishedAt || null,
+          lastError: j.lastError || null,
           CITY: j.env.CITY,
           COUNTRY: j.env.COUNTRY,
           KEYWORDS: j.env.KEYWORDS,
@@ -283,7 +387,9 @@ function createScraperService({ config, store }) {
 
     if (j.status === "queued") {
       store.removeFromQueue(j.id);
-      j.status = "failed";
+      j.status = "paused";
+      j.lastError = null;
+      store.persist();
       return { status: j.status };
     }
 
@@ -292,12 +398,34 @@ function createScraperService({ config, store }) {
     }
 
     try {
+      j.stopRequested = true;
       j.child.kill("SIGINT");
       j.status = "stopping";
+      store.persist();
       return { status: j.status };
     } catch (e) {
       return { error: String(e) };
     }
+  }
+
+  function resumeJob(id) {
+    const job = store.getJob(id);
+    if (!job) return { notFound: true };
+    if (!["failed", "paused", "interrupted"].includes(job.status)) {
+      return { error: "Chỉ có thể tiếp tục job đã lỗi, tạm dừng hoặc bị gián đoạn" };
+    }
+    if (!fs.existsSync(job.resultsPaths.CHECKPOINT_PATH)) {
+      return { error: "Không tìm thấy checkpoint để tiếp tục job này" };
+    }
+
+    if (currentRunning() < defaults.maxConcurrent) {
+      startJob(job);
+      return { job, queued: false };
+    }
+    job.status = "queued";
+    store.pushQueue(job.id);
+    store.persist();
+    return { job, queued: true, queuePosition: store.queueLength() };
   }
 
   function removeJob(id) {
@@ -326,6 +454,7 @@ function createScraperService({ config, store }) {
     getJob,
     getJobProgress,
     stopJob,
+    resumeJob,
     removeJob,
     rootDir,
     resultsBase,

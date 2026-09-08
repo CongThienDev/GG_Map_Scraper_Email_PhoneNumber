@@ -159,6 +159,13 @@ function createJobRoutes({ scraperService, areaCatalogService }) {
     return res.json({ ok: true, status: ret.status });
   });
 
+  router.post("/jobs/:id/resume", (req, res) => {
+    const ret = scraperService.resumeJob(req.params.id);
+    if (ret.notFound) return res.status(404).json({ error: "Not found" });
+    if (ret.error) return res.status(409).json({ error: ret.error });
+    return res.json({ id: ret.job.id, status: ret.job.status, queued: Boolean(ret.queued) });
+  });
+
   router.delete("/jobs/:id", (req, res) => {
     const ret = scraperService.removeJob(req.params.id);
     if (ret.notFound) return res.status(404).json({ error: "Not found" });

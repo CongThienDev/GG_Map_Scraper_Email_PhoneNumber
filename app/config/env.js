@@ -65,6 +65,7 @@ function loadEnvConfig(rootDir) {
     rootDir,
     publicDir: path.join(rootDir, "public"),
     resultsBase: path.join(rootDir, "results"),
+    jobsPath: path.join(rootDir, "data", "jobs.json"),
     scriptPath: path.join(rootDir, "scraper", "maps_scan_east_architects_hamburg.js"),
     cookieSecure: env.COOKIE_SECURE,
     sessionSecret: env.SESSION_SECRET,
