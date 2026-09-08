@@ -101,6 +101,23 @@ const CHECKPOINT_PATH = env('CHECKPOINT_PATH', pathSafe(path.join(RESULTS_DIR, '
 const PROFILE_DIR = env('PROFILE_DIR', process.env.PPTR_PROFILE_DIR || pathSafe(path.join(__dirname, '..', 'tmp', 'pptr-profile')));
 const HEADLESS = envBool('HEADLESS', false);
 
+// On recent macOS versions, older Chrome for Testing builds bundled by Puppeteer
+// can fail before Chrome starts (Node reports `spawn ... -88`).  Prefer an
+// explicitly configured executable, then the installed stable Chrome on macOS.
+function resolveBrowserExecutable() {
+  const configured = env('PUPPETEER_EXECUTABLE_PATH', '').trim();
+  if (configured) return configured;
+
+  if (process.platform === 'darwin') {
+    const systemChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    if (fs.existsSync(systemChrome)) return systemChrome;
+  }
+
+  return undefined; // Let Puppeteer select its managed browser on other platforms.
+}
+
+const BROWSER_EXECUTABLE_PATH = resolveBrowserExecutable();
+
 function pathSafe(p){ return p; }
 
 // 1. đảm bảo thư mục tồn tại
@@ -222,7 +239,7 @@ async function relaunchBrowser() {
   BROWSER = await puppeteer.launch({
     headless: HEADLESS,
     protocolTimeout: 120000,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    executablePath: BROWSER_EXECUTABLE_PATH,
     userDataDir: PROFILE_DIR,
     args: [
       '--no-sandbox',
@@ -1131,7 +1148,7 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
   BROWSER = await puppeteer.launch({
     headless: HEADLESS,
     protocolTimeout: 120000,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    executablePath: BROWSER_EXECUTABLE_PATH,
     userDataDir: PROFILE_DIR,
     args: [
       '--no-sandbox',
