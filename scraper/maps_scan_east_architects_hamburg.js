@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+const { makeLeadKey } = require('../app/utils/googleMapsPlaceIdentity');
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const jitter = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -60,6 +61,15 @@ let disconnected = false;
 let CURRENT_KEYWORD = '';
 const cellSummaries = []; // lưu thống kê từng grid
 let TOTAL_CELLS = 0;
+const benchmarkMetrics = {
+  urlsDiscovered: 0,
+  urlsScheduled: 0,
+  detailPagesOpened: 0,
+  earlyDuplicatesSkipped: 0,
+  lateDuplicatesSkipped: 0,
+  browserRecoveries: 0,
+  rowsWritten: 0,
+};
 
 // ====== SPEED / TIME BUDGET ======
 const CELL_TIME_BUDGET_MS = envInt('CELL_TIME_BUDGET_MS', 210000);
@@ -99,6 +109,26 @@ const POLYGON_OUT_PATH = env('POLYGON_OUT_PATH', path.join(RESULTS_DIR, 'polygon
 const CHECKPOINT_PATH = env('CHECKPOINT_PATH', pathSafe(path.join(RESULTS_DIR, 'checkpoint.json')));
 const PROFILE_DIR = env('PROFILE_DIR', process.env.PPTR_PROFILE_DIR || pathSafe(path.join(__dirname, '..', 'tmp', 'pptr-profile')));
 const HEADLESS = envBool('HEADLESS', false);
+
+function loadBenchmarkMetrics() {
+  try {
+    const previous = JSON.parse(fs.readFileSync(CHECKPOINT_PATH, 'utf8'))?.benchmarkMetrics;
+    if (!previous || typeof previous !== 'object') return;
+    for (const key of Object.keys(benchmarkMetrics)) {
+      if (Number.isFinite(previous[key])) benchmarkMetrics[key] = previous[key];
+    }
+  } catch { }
+}
+
+function snapshotBenchmarkMetrics() {
+  const scheduled = benchmarkMetrics.urlsScheduled;
+  return {
+    ...benchmarkMetrics,
+    earlyDuplicateRate: scheduled
+      ? Number((benchmarkMetrics.earlyDuplicatesSkipped / scheduled).toFixed(4))
+      : 0,
+  };
+}
 
 // On recent macOS versions, older Chrome for Testing builds bundled by Puppeteer
 // can fail before Chrome starts (Node reports `spawn ... -88`).  Prefer an
@@ -173,6 +203,7 @@ function primeSeenFromCSV() {
   } catch { }
 }
 
+loadBenchmarkMetrics();
 loadSeenCache();
 primeSeenFromCSV();
 
@@ -278,6 +309,7 @@ function saveCheckpoint(nextCellIndex, meta = {}) {
     nextCellIndex,
     stt: STT,
     timestamp: new Date().toISOString(),
+    benchmarkMetrics: snapshotBenchmarkMetrics(),
     ...meta,
   };
   try { fs.writeFileSync(CHECKPOINT_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch { }
@@ -365,6 +397,41 @@ async function isAwSnap(page) {
     const txt = await page.evaluate(() => document.body?.innerText?.slice(0, 500) || "");
     return /aw,\s*snap!/i.test(txt) || /Something went wrong while displaying this webpage/i.test(txt);
   } catch { return false; }
+}
+
+async function preparePageForCell(page, idx, cur) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const browserTooOld = Date.now() - BROWSER_LAUNCHED_AT > BROWSER_MAX_AGE_MS;
+      if (disconnected || !BROWSER?.isConnected() || browserTooOld) {
+        if (browserTooOld) console.log('[INFO] Browser too old, relaunching to free RAM…');
+        try { await page.close().catch(() => {}); } catch { }
+        page = await relaunchBrowser();
+      }
+
+      if (idx % RESET_EVERY_CELLS === 0) {
+        try { await page.close(); } catch { }
+        page = await hardResetSession(BROWSER);
+      }
+
+      if (await isAwSnap(page)) {
+        try { await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 }); } catch { }
+        if (await isAwSnap(page)) page = await relaunchBrowser();
+      }
+
+      await gotoCenter(page, cur.lat, cur.lng, 17);
+      await acceptConsentIfAny(page);
+      await ensureScale100m(page);
+      await clearSearchBox(page);
+      return page;
+    } catch (error) {
+      benchmarkMetrics.browserRecoveries += 1;
+      console.log(`[WARN] Cell ${idx + 1} browser recovery ${attempt + 1}/3: ${error?.message || error}`);
+      try { page = await relaunchBrowser(); } catch { }
+      await sleep(750 * (attempt + 1));
+    }
+  }
+  throw new Error(`Không thể chuẩn bị browser cho cell ${idx + 1}`);
 }
 
 async function recoverAwSnapAndRetry(currentPage, url, { attempts = 2 } = {}) {
@@ -473,35 +540,8 @@ function unwrapGoogleRedirect(u) {
   } catch { return u; }
 }
 
-function extractCid(u = '') {
-  try {
-    const url = new URL(u);
-    const cidParam = url.searchParams.get('cid');
-    if (cidParam) return cidParam;
-  } catch { }
-  const m = /[?&]cid=(\d+)/i.exec(u);
-  if (m) return m[1];
-  const m2 = /!1s([^!]+)!8m2/.exec(u);
-  if (m2) return m2[1];
-  return '';
-}
-
-function normalizeDomain(u = '') {
-  try {
-    const host = new URL(u).hostname || '';
-    return host.replace(/^www\./i, '').toLowerCase();
-  } catch { return ''; }
-}
-
-function makeKey({ url = '', website = '', phone = '' }) {
-  const cid = extractCid(url);
-  if (cid) return `cid:${cid}`;
-  const dom = normalizeDomain(website);
-  const phoneClean = (phone || '').replace(/\D+/g, '');
-  if (dom && phoneClean) return `domtel:${dom}:${phoneClean}`;
-  if (dom) return `dom:${dom}`;
-  if (phoneClean) return `tel:${phoneClean}`;
-  return '';
+function makeKey(input) {
+  return makeLeadKey(input);
 }
 
 // ====== POLYGON / GRID (OSM) ======
@@ -1085,11 +1125,21 @@ async function openEachPlaceAndGrab(page, links) {
   for (let i = 0; i < list.length; i++) {
     const url = list[i];
     try {
+      // Deduplicate before browser navigation. Every duplicate avoided here
+      // saves the expensive Maps detail-page load, not merely a CSV row.
+      const discoveryKey = makeKey({ url });
+      if (discoveryKey && seenKeys.has(discoveryKey)) {
+        benchmarkMetrics.earlyDuplicatesSkipped += 1;
+        log.dbg(`  [SKIP EARLY] dup ${discoveryKey}`);
+        continue;
+      }
+
       if (disconnected || !BROWSER?.isConnected()) {
         console.log('[INFO] Relaunching browser...');
         curPage = await relaunchBrowser();
       }
 
+      benchmarkMetrics.detailPagesOpened += 1;
       let okGoto = await safeGoto(curPage, url, { retries: 1, wait: 'domcontentloaded' });
       if (!okGoto || await isAwSnap(curPage)) {
         const p = await recoverAwSnapAndRetry(curPage, url, { attempts: 2 });
@@ -1121,6 +1171,7 @@ if (/before you continue to google/i.test(nameLower)) {
 
 const key = makeKey({ url, website: det.website, phone: det.phone });
 if (key && seenKeys.has(key)) {
+  benchmarkMetrics.lateDuplicatesSkipped += 1;
   log.dbg(`  [SKIP] dup ${key}`);
   continue;
 }
@@ -1133,6 +1184,7 @@ await enqueueCsvRow({
   google_maps_url: url, center_lat: CURRENT_CELL.lat, center_lng: CURRENT_CELL.lng
 });
 if (key) seenKeys.add(key);
+benchmarkMetrics.rowsWritten += 1;
 if (STT % 50 === 0) saveSeenCache();
 log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key ? '| key=' + key : ''}`);
 
@@ -1223,29 +1275,7 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
   const sttCellBefore = STT;
   let anchorsThisCell = 0;
   const keywordScans = [];
-  // nếu browser đã quá tuổi thì relaunch
-  if (Date.now() - BROWSER_LAUNCHED_AT > BROWSER_MAX_AGE_MS) {
-    console.log('[INFO] Browser too old, relaunching to free RAM…');
-    // đóng page cũ trước
-    try { await page.close().catch(() => {}); } catch {}
-    page = await relaunchBrowser();
-  }
     CURRENT_CELL_IDX = idx;
-
-    if (idx % RESET_EVERY_CELLS === 0) {
-      try { await page.close(); } catch { }
-      page = await hardResetSession(BROWSER);
-    }
-
-    if (await isAwSnap(page)) {
-      try { await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 }); } catch { }
-      if (await isAwSnap(page)) {
-        const newP = await BROWSER.newPage();
-        await newP.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36');
-        await page.close().catch(() => { });
-        page = newP;
-      }
-    }
 
     const cur = centers[idx];
     CURRENT_CELL = { ...cur };
@@ -1261,10 +1291,7 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
       totalCells: TOTAL_CELLS,
       currentCell: idx + 1
     });
-    await gotoCenter(page, cur.lat, cur.lng, 17);
-    await acceptConsentIfAny(page);
-    await ensureScale100m(page);
-    await clearSearchBox(page);
+    page = await preparePageForCell(page, idx, cur);
 
     for (const kw of KEYWORDS) {
       CURRENT_KEYWORD = kw;
@@ -1290,6 +1317,8 @@ log.info(`  [COUNT] ${STT} → ${det.name} | ${det.website || '(no site)'} ${key
       const links = (MAX_LINKS_PER_CELL && MAX_LINKS_PER_CELL > 0)
         ? scan.links.slice(0, MAX_LINKS_PER_CELL)
         : scan.links;
+      benchmarkMetrics.urlsDiscovered += scan.count;
+      benchmarkMetrics.urlsScheduled += links.length;
       console.log(`  [DBG] ${kw} → links collected = ${links.length}`);
 
       // mở từng URL và ghi CSV nếu chưa trùng

@@ -210,6 +210,7 @@ function createScraperService({ config, store }) {
             currentCell: ck.currentCell || ck.nextCellIndex || 0,
             totalCells: ck.totalCells || 0,
             timestamp: ck.timestamp || "",
+            benchmarkMetrics: ck.benchmarkMetrics || null,
           },
         };
       })
@@ -265,6 +266,7 @@ function createScraperService({ config, store }) {
       anchorsCollected: ck.anchorsCollected,
       rowsWritten: ck.rowsWritten,
       processedCount: ck.processedCount,
+      benchmarkMetrics: ck.benchmarkMetrics || null,
       lastKeyword: ck.lastKeyword || "",
       timestamp: ck.timestamp || "",
       lastCenter: ck.lastCenter || null,

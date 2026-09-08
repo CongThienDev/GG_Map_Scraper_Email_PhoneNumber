@@ -121,6 +121,7 @@ describe("scraperService", () => {
         totalCells: 3,
         processedCount: 11,
         lastKeyword: "restaurant",
+        benchmarkMetrics: { detailPagesOpened: 10, earlyDuplicatesSkipped: 3 },
       }),
       "utf8"
     );
@@ -137,6 +138,7 @@ describe("scraperService", () => {
     expect(progress.currentCell).toBe(2);
     expect(progress.totalCells).toBe(3);
     expect(progress.processedCount).toBe(11);
+    expect(progress.benchmarkMetrics).toEqual({ detailPagesOpened: 10, earlyDuplicatesSkipped: 3 });
     expect(progress.centersInline).toHaveLength(1);
     expect(progress.polygonInline.city).toBe("Cologne");
   });
