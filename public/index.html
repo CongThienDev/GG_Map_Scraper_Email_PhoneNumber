@@ -246,6 +246,34 @@
         display: grid;
         gap: 14px;
       }
+      .queue-panel {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 18px;
+        margin: 0 0 22px;
+        padding: 14px 16px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .queue-summary {
+        color: var(--muted);
+      }
+      .queue-summary b {
+        color: var(--ink);
+      }
+      .queue-form {
+        display: flex;
+        align-items: end;
+        gap: 8px;
+      }
+      .queue-form label {
+        min-width: 156px;
+      }
+      .queue-form input {
+        padding: 8px 10px;
+      }
       .job {
         background: #fff;
         border: 1px solid var(--line);
@@ -519,9 +547,14 @@
           grid-column: auto;
         }
         .actions,
-        .toolbar {
+        .toolbar,
+        .queue-panel {
           align-items: stretch;
           flex-direction: column;
+        }
+        .queue-form,
+        .queue-form label {
+          width: 100%;
         }
         .job-actions {
           justify-content: start;
@@ -723,6 +756,14 @@
           </div>
           <button class="btn primary" id="newJob">Tạo đơn quét</button>
         </div>
+        <div class="queue-panel">
+          <div class="queue-summary" id="jobQueueSummary" aria-live="polite">Đang tải trạng thái job…</div>
+          <form class="queue-form" id="jobLimitForm">
+            <label>Job chạy đồng thời tối đa<input id="maxConcurrent" type="number" min="1" step="1" required /></label>
+            <button class="btn" type="submit">Lưu giới hạn</button>
+          </form>
+        </div>
+        <p class="msg" id="jobQueueMsg" aria-live="polite"></p>
         <label class="search"
           >Tìm theo thành phố hoặc ngành<input
             id="search"
@@ -758,6 +799,7 @@
     <script>
       const $ = (s) => document.querySelector(s);
       let data = [],
+        jobStats = {},
         stream,
         timer;
       let leafletMap, markers, polygonLayer;
@@ -1079,10 +1121,18 @@
       async function load() {
         const r = await fetch("/jobs");
         if (!r.ok) return;
-        data = (await r.json()).jobs || [];
+        const payload = await r.json();
+        data = payload.jobs || [];
+        jobStats = payload.stats || {};
         render();
       }
       function render() {
+        const running = Number(jobStats.running || 0),
+          queued = Number(jobStats.queued || 0),
+          maxConcurrent = Number(jobStats.maxConcurrent || 0),
+          maxInput = $("#maxConcurrent");
+        $("#jobQueueSummary").innerHTML = `<b>${fmt.format(running)} / ${fmt.format(maxConcurrent)}</b> job đang chạy · <b>${fmt.format(queued)}</b> job đang chờ`;
+        if (document.activeElement !== maxInput && maxConcurrent) maxInput.value = maxConcurrent;
         const q = $("#search").value.toLowerCase(),
           a = data.filter((j) =>
             (j.CITY + " " + (j.COUNTRY || "") + " " + j.KEYWORDS.join(" "))
@@ -1105,12 +1155,33 @@
                   error = j.lastError
                     ? `<div class="meta error" title="${esc(j.lastError)}">Lỗi: ${esc(j.lastError).slice(0, 180)}</div>`
                     : "",
-                  files = `<div class="file-actions"><a class="btn" href="${j.csvUrl}" target="_blank">CSV</a><a class="btn" href="/jobs/${j.id}/excel" target="_blank">Excel</a><a class="btn" href="${j.checkpointUrl}" target="_blank">Checkpoint</a></div>`;
-                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} · ${esc(j.CITY)}</div><div class="meta">${esc(j.COUNTRY || "Chưa ghi quốc gia")}</div>${error}</div><div><div class="meta"><b>${n}${t ? " / " + t : ""}</b> grid · ${c.processedCount || 0} doanh nghiệp${efficiency}</div><div class="track"><div class="bar" style="width:${p}%"></div></div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">Xem chi tiết</button>${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Tạm dừng</button>` : ""}${resumable ? `<button class="btn primary" data-a="resume" data-id="${j.id}">Tiếp tục${t ? ` (${Math.min(n + 1, t)}/${t})` : ""}</button>` : ""}${files}<button class="btn danger" data-a="del" data-id="${j.id}">Xóa</button></div></article>`;
+                  files = `<div class="file-actions"><a class="btn" href="${j.csvUrl}" target="_blank">CSV</a><a class="btn" href="/jobs/${j.id}/excel" target="_blank">Excel</a><a class="btn" href="${j.checkpointUrl}" target="_blank">Checkpoint</a></div>`,
+                  queueInfo = j.status === "queued" && j.queuePosition ? ` · vị trí chờ #${j.queuePosition}` : "";
+                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} · ${esc(j.CITY)}</div><div class="meta">${esc(j.COUNTRY || "Chưa ghi quốc gia")}${queueInfo}</div>${error}</div><div><div class="meta"><b>${n}${t ? " / " + t : ""}</b> grid · ${c.processedCount || 0} doanh nghiệp${efficiency}</div><div class="track"><div class="bar" style="width:${p}%"></div></div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">Xem chi tiết</button>${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Tạm dừng</button>` : ""}${resumable ? `<button class="btn primary" data-a="resume" data-id="${j.id}">Tiếp tục${t ? ` (${Math.min(n + 1, t)}/${t})` : ""}</button>` : ""}${files}<button class="btn danger" data-a="del" data-id="${j.id}">Xóa</button></div></article>`;
               })
               .join("")
           : '<div class="card" style="max-width:none"><h2>Chưa có đợt quét phù hợp</h2><p class="lead">Tạo đơn quét mới để bắt đầu.</p></div>';
       }
+      $("#jobLimitForm").onsubmit = async (event) => {
+        event.preventDefault();
+        const message = $("#jobQueueMsg"),
+          maxConcurrent = Number($("#maxConcurrent").value);
+        message.className = "msg";
+        message.textContent = "Đang cập nhật giới hạn job…";
+        try {
+          const result = await json("/jobs/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ maxConcurrent }),
+          });
+          message.className = "msg success";
+          message.textContent = `Đã đặt tối đa ${result.maxConcurrent} job chạy đồng thời.`;
+          await load();
+        } catch (error) {
+          message.className = "msg error";
+          message.textContent = error.message;
+        }
+      };
       $("#search").oninput = render;
       $("#jobList").onclick = async (e) => {
         const b = e.target.closest("button[data-a]");

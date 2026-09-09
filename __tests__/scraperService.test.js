@@ -106,6 +106,57 @@ describe("scraperService", () => {
     expect(second.job.status).toBe("finished");
   });
 
+  test("starts queued jobs when the concurrent-job limit is increased", () => {
+    const child1 = makeFakeChild();
+    const child2 = makeFakeChild();
+    spawn.mockReturnValueOnce(child1).mockReturnValueOnce(child2);
+
+    const store = createJobStore();
+    const service = createScraperService({
+      config: makeConfig(tempDir, { maxConcurrent: 1 }),
+      store,
+    });
+
+    service.createJob({ city: "Berlin", keywords: "lawyer" });
+    const queued = service.createJob({ city: "Munich", keywords: "doctor" });
+
+    expect(service.listJobs().jobs.find((job) => job.id === queued.job.id).queuePosition).toBe(1);
+
+    expect(service.setMaxConcurrent(2)).toEqual({ maxConcurrent: 2 });
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(queued.job.status).toBe("running");
+    expect(service.listJobs().stats.maxConcurrent).toBe(2);
+  });
+
+  test("uses the runtime concurrent-job limit when resuming a job", () => {
+    const activeChild = makeFakeChild();
+    const pausedChild = makeFakeChild();
+    const resumedChild = makeFakeChild();
+    spawn
+      .mockReturnValueOnce(activeChild)
+      .mockReturnValueOnce(pausedChild)
+      .mockReturnValueOnce(resumedChild);
+
+    const store = createJobStore();
+    const service = createScraperService({
+      config: makeConfig(tempDir, { maxConcurrent: 2 }),
+      store,
+    });
+    const active = service.createJob({ city: "Berlin", keywords: "lawyer" });
+    const paused = service.createJob({ city: "Munich", keywords: "doctor" });
+    fs.writeFileSync(paused.job.resultsPaths.CHECKPOINT_PATH, JSON.stringify({ nextCellIndex: 1 }));
+    service.stopJob(paused.job.id);
+    pausedChild.emit("exit", null, "SIGINT");
+
+    service.setMaxConcurrent(1);
+    const resumed = service.resumeJob(paused.job.id);
+
+    expect(active.job.status).toBe("running");
+    expect(resumed.queued).toBe(true);
+    expect(paused.job.status).toBe("queued");
+    expect(spawn).toHaveBeenCalledTimes(2);
+  });
+
   test("reads progress payload from checkpoint, centers and polygon files", () => {
     const child = makeFakeChild();
     spawn.mockReturnValue(child);

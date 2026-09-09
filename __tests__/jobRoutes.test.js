@@ -95,6 +95,19 @@ describe("jobRoutes", () => {
     expect(res.body).toEqual(payload);
   });
 
+  test("PATCH /jobs/settings changes the concurrent-job limit", async () => {
+    const scraperService = {
+      setMaxConcurrent: jest.fn().mockReturnValue({ maxConcurrent: 4 }),
+    };
+
+    const app = createTestApp(scraperService);
+    const res = await request(app).patch("/jobs/settings").send({ maxConcurrent: 4 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ maxConcurrent: 4 });
+    expect(scraperService.setMaxConcurrent).toHaveBeenCalledWith(4);
+  });
+
   test("GET /jobs/:id/status returns 404 when missing", async () => {
     const scraperService = {
       getJob: jest.fn().mockReturnValue(null),

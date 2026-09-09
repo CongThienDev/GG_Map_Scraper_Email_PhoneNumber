@@ -70,10 +70,21 @@ function createJobRoutes({ scraperService, areaCatalogService }) {
     res.json(scraperService.listJobs());
   });
 
+  router.patch("/jobs/settings", (req, res) => {
+    const result = scraperService.setMaxConcurrent(req.body?.maxConcurrent);
+    if (result.error) return res.status(400).json({ error: result.error });
+    return res.json(result);
+  });
+
   router.get("/jobs/:id/status", (req, res) => {
     const job = scraperService.getJob(req.params.id);
     if (!job) return res.status(404).json({ error: "Not found" });
-    res.json({ id: job.id, status: job.status, ...job.resultsPaths });
+    res.json({
+      id: job.id,
+      status: job.status,
+      queuePosition: scraperService.queuePosition(job.id),
+      ...job.resultsPaths,
+    });
   });
 
   router.get("/jobs/:id/excel", async (req, res) => {
@@ -142,7 +153,7 @@ function createJobRoutes({ scraperService, areaCatalogService }) {
       }
       res.flush?.();
 
-      if (job.status === "finished" || job.status === "failed") {
+      if (["finished", "failed", "paused", "interrupted"].includes(job.status)) {
         res.write(`event: status\ndata: ${job.status}\n\n`);
         res.flush?.();
         clearInterval(intervalId);

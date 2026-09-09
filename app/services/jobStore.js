@@ -88,6 +88,11 @@ function createJobStore({ persistencePath } = {}) {
     return queue.length;
   }
 
+  function queuePosition(id) {
+    const idx = queue.indexOf(id);
+    return idx === -1 ? null : idx + 1;
+  }
+
   function readJsonCached(filePath, fallbackValue) {
     if (!filePath || !fs.existsSync(filePath)) return fallbackValue;
     try {
@@ -114,6 +119,7 @@ function createJobStore({ persistencePath } = {}) {
     shiftQueue,
     removeFromQueue,
     queueLength,
+    queuePosition,
     readJsonCached,
     persist,
   };

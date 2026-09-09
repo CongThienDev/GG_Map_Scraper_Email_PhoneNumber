@@ -5,6 +5,7 @@ const { sanitize, toInt, toBool } = require("../utils/parsers");
 
 function createScraperService({ config, store }) {
   const { defaults, resultsBase, scriptPath, rootDir } = config;
+  let maxConcurrent = defaults.maxConcurrent;
 
   fs.mkdirSync(resultsBase, { recursive: true });
   if (!fs.existsSync(scriptPath)) {
@@ -113,10 +114,10 @@ function createScraperService({ config, store }) {
   }
 
   function startNextFromQueue() {
-    while (currentRunning() < defaults.maxConcurrent && store.queueLength() > 0) {
+    while (currentRunning() < maxConcurrent && store.queueLength() > 0) {
       const nextId = store.shiftQueue();
       const nextJob = store.getJob(nextId);
-      if (!nextJob) continue;
+      if (!nextJob || nextJob.status !== "queued") continue;
       startJob(nextJob);
     }
   }
@@ -178,7 +179,9 @@ function createScraperService({ config, store }) {
       });
     } catch (error) {
       job.status = "failed";
+      job.finishedAt = Date.now();
       job.lastError = `Không thể khởi động worker: ${error.message}`;
+      pushLog(job, `${job.lastError}\n`, "process");
       store.persist();
       return;
     }
@@ -197,6 +200,12 @@ function createScraperService({ config, store }) {
     child.on("error", (error) => {
       job.lastError = `Worker error: ${error.message}`;
       pushLog(job, `${job.lastError}\n`, "error");
+      if (job.status === "running") {
+        job.status = "failed";
+        job.finishedAt = Date.now();
+        store.persist();
+        startNextFromQueue();
+      }
     });
     child.on("exit", (code, signal) => {
       job.finishedAt = Date.now();
@@ -282,7 +291,7 @@ function createScraperService({ config, store }) {
     };
 
     store.addJob(job);
-    if (currentRunning() < defaults.maxConcurrent) {
+    if (currentRunning() < maxConcurrent) {
       startJob(job);
       return { job, queued: false };
     }
@@ -306,6 +315,7 @@ function createScraperService({ config, store }) {
           CITY: j.env.CITY,
           COUNTRY: j.env.COUNTRY,
           KEYWORDS: j.env.KEYWORDS,
+          queuePosition: j.status === "queued" ? store.queuePosition(j.id) : null,
           ...j.resultsPaths,
           csvUrl: `/results/${path.relative(resultsBase, j.resultsPaths.CSV_PATH)}`,
           checkpointUrl: `/results/${path.relative(resultsBase, j.resultsPaths.CHECKPOINT_PATH)}`,
@@ -327,9 +337,25 @@ function createScraperService({ config, store }) {
         failed: jobs.filter((j) => j.status === "failed").length,
         queued: jobs.filter((j) => j.status === "queued").length,
         queueLength: store.queueLength(),
-        maxConcurrent: defaults.maxConcurrent,
+        maxConcurrent,
       },
     };
+  }
+
+  function setMaxConcurrent(value) {
+    const nextMax = Number(value);
+    if (!Number.isInteger(nextMax) || nextMax < 1) {
+      return { error: "maxConcurrent phải là số nguyên lớn hơn 0" };
+    }
+
+    maxConcurrent = nextMax;
+    startNextFromQueue();
+    return { maxConcurrent };
+  }
+
+  function queuePosition(id) {
+    const job = store.getJob(id);
+    return job?.status === "queued" ? store.queuePosition(id) : null;
   }
 
   function getJob(id) {
@@ -378,6 +404,7 @@ function createScraperService({ config, store }) {
       polygonUrl,
       centersInline: Array.isArray(centers) ? centers : [],
       polygonInline,
+      queuePosition: queuePosition(j.id),
     };
   }
 
@@ -418,7 +445,7 @@ function createScraperService({ config, store }) {
       return { error: "Không tìm thấy checkpoint để tiếp tục job này" };
     }
 
-    if (currentRunning() < defaults.maxConcurrent) {
+    if (currentRunning() < maxConcurrent) {
       startJob(job);
       return { job, queued: false };
     }
@@ -453,6 +480,8 @@ function createScraperService({ config, store }) {
     listJobs,
     getJob,
     getJobProgress,
+    queuePosition,
+    setMaxConcurrent,
     stopJob,
     resumeJob,
     removeJob,

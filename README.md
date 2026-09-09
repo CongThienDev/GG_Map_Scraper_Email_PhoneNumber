@@ -136,6 +136,13 @@ Required:
 - `ADMIN_USER`
 - `ADMIN_HASH`
 
+### Job concurrency and queue
+
+`MAX_CONCURRENT` sets the initial number of scrape jobs that may run at once (default: `13`).
+Jobs created after that limit is reached are kept in a FIFO queue and start automatically whenever
+a running job ends. The **Đợt quét** page also lets an authenticated user change the limit for the
+current server session; this runtime value returns to `MAX_CONCURRENT` after a server restart.
+
 ## Docker (one-command run)
 
 Build and run:
