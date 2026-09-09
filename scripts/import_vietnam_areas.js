@@ -1,19 +1,26 @@
 #!/usr/bin/env node
-/* Imports current Vietnam provinces + practical crawl areas; no bulk Nominatim/Overpass calls. */
+/* Imports Vietnam or United States administrative areas; no bulk Nominatim/Overpass calls. */
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
 
 const rootDir = path.join(__dirname, "..");
-const dataDir = path.join(rootDir, "data", "vietnam");
+const countryCode = String(process.env.AREA_IMPORT_COUNTRY || "VN").toUpperCase();
+if (!["VN", "US"].includes(countryCode)) {
+  throw new Error("AREA_IMPORT_COUNTRY must be VN or US");
+}
+const dataDir = path.join(rootDir, "data", countryCode === "US" ? "united-states" : "vietnam");
 const boundaryDir = path.join(dataDir, "boundaries");
 const apiBase =
-  process.env.GEOBOUNDARIES_API || "https://www.geoboundaries.org/api/current/gbOpen/VNM";
+  countryCode === "US"
+    ? process.env.US_GEOBOUNDARIES_API || "https://www.geoboundaries.org/api/current/gbOpen/USA"
+    : process.env.GEOBOUNDARIES_API || "https://www.geoboundaries.org/api/current/gbOpen/VNM";
 const provinceUrl =
   process.env.VN_PROVINCES_GEOJSON_URL ||
   "https://raw.githubusercontent.com/nguyenduy1133/Free-GIS-Data/main/Vietnam%20Administrative%20Divisions%20%28Post-2025%29%20-%20%C4%90%C6%A1n%20v%E1%BB%8B%20h%C3%A0nh%20ch%C3%ADnh%20Vi%E1%BB%87t%20Nam%20%28T%E1%BB%AB%202025%29/Provinces.geojson";
 const userAgent = process.env.GEOBOUNDARIES_USER_AGENT || "maps-prospects/1.0";
 const specialAreaParents = { "Con Dao": "Hồ Chí Minh" };
+const usSpecialAreaParents = { "Rose Island": "American Samoa", "Manu'a": "American Samoa" };
 
 function getJson(url, redirects = 3) {
   return new Promise((resolve, reject) => {
@@ -62,7 +69,9 @@ function simplify(points, tolerance) {
     }
     return dx * dx + dy * dy;
   };
-  const walk = (first, last) => {
+  const ranges = [[0, points.length - 1]];
+  while (ranges.length) {
+    const [first, last] = ranges.pop();
     let max = squared,
       at = -1;
     for (let i = first + 1; i < last; i += 1) {
@@ -74,11 +83,9 @@ function simplify(points, tolerance) {
     }
     if (at !== -1) {
       keep[at] = 1;
-      walk(first, at);
-      walk(at, last);
+      ranges.push([first, at], [at, last]);
     }
-  };
-  walk(0, points.length - 1);
+  }
   return points.filter((_, index) => keep[index]);
 }
 
@@ -90,13 +97,19 @@ function outerRings(geometry) {
 }
 
 function bbox(rings) {
-  const points = rings.flat();
-  return [
-    Math.min(...points.map((p) => p[0])),
-    Math.min(...points.map((p) => p[1])),
-    Math.max(...points.map((p) => p[0])),
-    Math.max(...points.map((p) => p[1])),
-  ];
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const ring of rings) {
+    for (const [x, y] of ring) {
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  return [minX, minY, maxX, maxY];
 }
 
 function pointInRing([x, y], ring) {
@@ -142,7 +155,91 @@ async function downloadLevel(level) {
   return { metadata, geojson: await getJson(metadata.gjDownloadURL) };
 }
 
+function assignParents(crawlAreas, parents) {
+  for (const area of crawlAreas) {
+    const [minX, minY, maxX, maxY] = area.bbox;
+    const center = [(minX + maxX) / 2, (minY + maxY) / 2];
+    const samples = [
+      center,
+      ...area.fullPolygon.flatMap((ring) => ring.filter((_, index) => index % 12 === 0)),
+    ];
+    const parent = parents
+      .map((candidate) => ({
+        candidate,
+        score: samples.filter(
+          (point) =>
+            point[0] >= candidate.bbox[0] &&
+            point[0] <= candidate.bbox[2] &&
+            point[1] >= candidate.bbox[1] &&
+            point[1] <= candidate.bbox[3] &&
+            candidate.fullPolygon.some((ring) => pointInRing(point, ring))
+        ).length,
+      }))
+      .sort((a, b) => b.score - a.score)[0];
+    area.parentId = parent?.score ? parent.candidate.id : "";
+    area.parentName = parent?.score ? parent.candidate.name : "Chưa xác định";
+  }
+}
+
+function writeCatalog({ country, source, parents, crawlAreas, parentLabel, crawlLabel }) {
+  fs.mkdirSync(boundaryDir, { recursive: true });
+  for (const area of crawlAreas) {
+    fs.writeFileSync(
+      path.join(boundaryDir, `${area.id}.json`),
+      JSON.stringify({ city: area.name, polygon: area.fullPolygon }),
+      "utf8"
+    );
+    delete area.fullPolygon;
+  }
+  parents.forEach((area) => delete area.fullPolygon);
+  const catalog = {
+    version: 1,
+    countryCode: country,
+    source,
+    importedAt: new Date().toISOString(),
+    areas: [...parents, ...crawlAreas],
+  };
+  fs.mkdirSync(dataDir, { recursive: true });
+  const tempPath = path.join(dataDir, `catalog-${Date.now()}.tmp`);
+  fs.writeFileSync(tempPath, JSON.stringify(catalog), "utf8");
+  fs.renameSync(tempPath, path.join(dataDir, "catalog.json"));
+  console.log(
+    `[${country}] Ready: ${parents.length} ${parentLabel}, ${crawlAreas.length} ${crawlLabel}.`
+  );
+}
+
+async function importUnitedStates() {
+  console.log("[US] Downloading state and county-equivalent boundaries from geoBoundaries…");
+  const [adm1, adm2] = await Promise.all([downloadLevel(1), downloadLevel(2)]);
+  const states = (adm1.geojson.features || []).map((feature) => toArea(feature, 4)).filter(Boolean);
+  const counties = (adm2.geojson.features || []).map((feature) => toArea(feature, 6)).filter(Boolean);
+  assignParents(counties, states);
+  for (const area of counties) {
+    if (area.parentId || !usSpecialAreaParents[area.name]) continue;
+    const state = states.find((candidate) => candidate.name === usSpecialAreaParents[area.name]);
+    area.parentId = state?.id || "";
+    area.parentName = state?.name || "Chưa xác định";
+  }
+  const unassigned = counties.filter((area) => !area.parentId);
+  if (unassigned.length) {
+    throw new Error(
+      `Không thể xác định state cho ${unassigned.length} county-equivalent: ${unassigned
+        .map((area) => area.name)
+        .join(", ")}`
+    );
+  }
+  writeCatalog({
+    country: "US",
+    source: `geoBoundaries USA ADM1/ADM2 (${adm1.metadata.boundaryYearRepresented || "unknown"}; source: U.S. Census Bureau MAF/TIGER)`,
+    parents: states,
+    crawlAreas: counties,
+    parentLabel: "state-equivalent",
+    crawlLabel: "county-equivalent crawl areas",
+  });
+}
+
 async function main() {
+  if (countryCode === "US") return importUnitedStates();
   console.log("[VN] Downloading current provincial boundaries (post-2025)…");
   const provinceGeojson = await getJson(provinceUrl);
   console.log("[VN] Downloading static crawl-area boundaries (ADM2)…");
@@ -202,6 +299,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`[VN] Import failed: ${error.message}`);
+  console.error(`[${countryCode}] Import failed: ${error.stack || error.message}`);
   process.exit(1);
 });

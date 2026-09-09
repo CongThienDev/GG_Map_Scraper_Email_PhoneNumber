@@ -1,11 +1,14 @@
 const fs = require("fs");
 const path = require("path");
 
-const COUNTRY_CODE = "VN";
-
-function createAreaCatalogService({ rootDir }) {
-  const catalogPath = path.join(rootDir, "data", "vietnam", "catalog.json");
-  const boundaryDir = path.join(rootDir, "data", "vietnam", "boundaries");
+function createAreaCatalogService({
+  rootDir,
+  countryCode = "VN",
+  dataDirectory = "vietnam",
+  sortLocale = "vi",
+}) {
+  const catalogPath = path.join(rootDir, "data", dataDirectory, "catalog.json");
+  const boundaryDir = path.join(rootDir, "data", dataDirectory, "boundaries");
   let cached = null;
   let cachedMtimeMs = 0;
 
@@ -36,7 +39,7 @@ function createAreaCatalogService({ rootDir }) {
     const catalog = readCatalog();
     const areas = catalog.areas || [];
     return {
-      countryCode: COUNTRY_CODE,
+      countryCode,
       ready: areas.length > 0,
       importedAt: catalog.importedAt || null,
       source: catalog.source || null,
@@ -50,7 +53,7 @@ function createAreaCatalogService({ rootDir }) {
     return readCatalog()
       .areas.filter((area) => area.level === 4)
       .map(({ id, name, nameEn, areaKm2 }) => ({ id, name, nameEn, areaKm2 }))
-      .sort((a, b) => a.name.localeCompare(b.name, "vi"));
+      .sort((a, b) => a.name.localeCompare(b.name, sortLocale));
   }
 
   function listAreas({ provinceId = "", q = "", includeProvinces = false } = {}) {
@@ -69,7 +72,7 @@ function createAreaCatalogService({ rootDir }) {
         delete summary.geometry;
         return summary;
       })
-      .sort((a, b) => a.name.localeCompare(b.name, "vi"));
+      .sort((a, b) => a.name.localeCompare(b.name, sortLocale));
   }
 
   function geoJson({ provinceId = "", ids = [] } = {}) {

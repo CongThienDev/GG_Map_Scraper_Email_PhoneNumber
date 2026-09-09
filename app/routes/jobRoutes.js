@@ -4,11 +4,11 @@ const path = require("path");
 const ExcelJS = require("exceljs");
 const { parse: csvParse } = require("csv-parse/sync");
 
-function createJobRoutes({ scraperService, areaCatalogService }) {
+function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaCatalogService }) {
   const router = express.Router();
 
-  router.post("/jobs/batch", (req, res) => {
-    if (!areaCatalogService) return res.status(501).json({ error: "Area catalog is unavailable" });
+  function createBatchJobs(req, res, catalogService, country) {
+    if (!catalogService) return res.status(501).json({ error: "Area catalog is unavailable" });
     const ids = Array.isArray(req.body?.areaIds)
       ? [...new Set(req.body.areaIds.filter((id) => typeof id === "string"))].slice(0, 300)
       : [];
@@ -16,15 +16,15 @@ function createJobRoutes({ scraperService, areaCatalogService }) {
     const stepMeters = req.body?.STEP_METERS;
     if (!ids.length) return res.status(400).json({ error: "Hãy chọn ít nhất một khu vực" });
 
-    const areas = areaCatalogService.getAreasByIds(ids);
+    const areas = catalogService.getAreasByIds(ids);
     if (areas.length !== ids.length) {
       return res.status(400).json({ error: "Một hoặc nhiều khu vực không hợp lệ" });
     }
 
-    const missingPolygon = areas.find((area) => !areaCatalogService.polygonPathFor(area));
+    const missingPolygon = areas.find((area) => !catalogService.polygonPathFor(area));
     if (missingPolygon) {
       return res.status(409).json({
-        error: `Chưa có polygon đầy đủ cho ${missingPolygon.name}. Hãy import lại catalog Việt Nam.`,
+        error: `Chưa có polygon đầy đủ cho ${missingPolygon.name}. Hãy import lại catalog.`,
       });
     }
 
@@ -32,10 +32,10 @@ function createJobRoutes({ scraperService, areaCatalogService }) {
     for (const area of areas) {
       const result = scraperService.createJob({
         city: area.name,
-        country: "Việt Nam",
+        country,
         keywords,
         STEP_METERS: stepMeters,
-        POLYGON_PATH: areaCatalogService.polygonPathFor(area),
+        POLYGON_PATH: catalogService.polygonPathFor(area),
       });
       if (result.error)
         return res.status(400).json({ error: result.error, created: created.length });
@@ -48,7 +48,15 @@ function createJobRoutes({ scraperService, areaCatalogService }) {
       });
     }
     return res.status(201).json({ created, count: created.length });
+  }
+
+  router.post("/jobs/batch", (req, res) => {
+    return createBatchJobs(req, res, areaCatalogService, "Việt Nam");
   });
+
+  router.post("/jobs/batch/us", (req, res) =>
+    createBatchJobs(req, res, unitedStatesAreaCatalogService, "United States")
+  );
 
   router.post("/jobs", (req, res) => {
     const created = scraperService.createJob(req.body || {});

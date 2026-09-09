@@ -649,6 +649,13 @@ const SCRAPER_DIR = __dirname;
 function polygonFileCandidatesFor(city) {
   const variants = new Set();
   const roots = [SCRAPER_DIR, path.join(SCRAPER_DIR, ".."), POLYGON_DIR]; // ưu tiên thư mục scraper, root repo, rồi thư mục polygons
+  if (POLYGON_PATH) {
+    const custom = path.isAbsolute(POLYGON_PATH)
+      ? POLYGON_PATH
+      : path.join(SCRAPER_DIR, "..", POLYGON_PATH);
+    // A batch area's explicit boundary must win over a legacy city-name cache.
+    variants.add(custom);
+  }
   const nfc = city.normalize("NFC");
   const nfd = city.normalize("NFD");
   const ascii = city
@@ -667,13 +674,6 @@ function polygonFileCandidatesFor(city) {
       variants.add(path.join(root, `polygon_${toSafe(c)}.json`));
     });
   });
-
-  if (POLYGON_PATH) {
-    const custom = path.isAbsolute(POLYGON_PATH)
-      ? POLYGON_PATH
-      : path.join(SCRAPER_DIR, "..", POLYGON_PATH);
-    variants.add(custom);
-  }
 
   return Array.from(variants);
 }

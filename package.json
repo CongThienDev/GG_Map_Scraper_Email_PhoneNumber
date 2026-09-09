@@ -9,6 +9,7 @@
     "start:pm2": "pm2 start server.js -n maps-ui && pm2 save",
     "polygon:city": "node scripts/fetch_polygon_city.js",
     "areas:vn": "node scripts/import_vietnam_areas.js",
+    "areas:us": "AREA_IMPORT_COUNTRY=US node scripts/import_vietnam_areas.js",
     "test": "jest --runInBand",
     "lint": "eslint server.js app __tests__",
     "lint:fix": "eslint server.js app __tests__ --fix",

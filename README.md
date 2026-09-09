@@ -125,6 +125,20 @@ ADM2 geometry for the 708 practical crawl areas; it then saves the result locall
 browser receives simplified display geometry; the scraper receives the full local polygon for
 each job.
 
+## United States area catalog and batch crawl
+
+The United States catalog is organized as **State → County**. Counties and county-equivalent
+areas are the crawl units, so select only a few at a time before creating jobs. Import it from the
+**Bản đồ Hoa Kỳ** tab, or run:
+
+```bash
+npm run areas:us
+```
+
+It downloads ADM1/ADM2 boundaries from geoBoundaries, whose USA data is sourced from the U.S.
+Census Bureau MAF/TIGER database, and saves the full polygons under
+`data/united-states/boundaries/`.
+
 ## Environment validation (fail-fast)
 
 Env is validated at startup in `app/config/env.js` via `zod`.

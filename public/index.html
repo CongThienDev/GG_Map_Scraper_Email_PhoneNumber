@@ -386,7 +386,7 @@
       }
       .area-toolbar {
         display: grid;
-        grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr) auto;
+        grid-template-columns: minmax(140px, 0.65fr) minmax(180px, 0.8fr) minmax(220px, 1.2fr) auto;
         gap: 12px;
         align-items: end;
         margin: 24px 0 16px;
@@ -599,7 +599,7 @@
           ><button class="tab" id="cities-tab" role="tab" aria-selected="false">
             Chuẩn bị thành phố</button
           ><button class="tab" id="areas-tab" role="tab" aria-selected="false">
-            Bản đồ Việt Nam</button
+            Bản đồ khu vực</button
           ><button class="tab" id="jobs-tab" role="tab" aria-selected="false">Đợt quét</button>
         </nav>
       </div>
@@ -681,8 +681,8 @@
       </section>
       <section class="panel" id="areas" hidden>
         <div class="card area-shell">
-          <h1>Chọn khu vực Việt Nam</h1>
-          <p class="lead">
+          <h1 id="areasTitle">Chọn khu vực Việt Nam</h1>
+          <p class="lead" id="areasLead">
             Chọn các khu vực quét trên bản đồ. Mỗi khu vực tạo một đơn riêng, dùng polygon đã lưu để
             phủ đủ grid.
           </p>
@@ -690,7 +690,13 @@
           <div class="area-status" id="areaStatus" hidden></div>
           <div class="area-toolbar">
             <label
-              >Tỉnh/thành cấp tỉnh<select id="provinceFilter">
+              >Quốc gia<select id="areaCountry">
+                <option value="VN">Việt Nam</option>
+                <option value="US">United States</option>
+              </select></label
+            >
+            <label
+              ><span id="areaParentLabel">Tỉnh/thành cấp tỉnh</span><select id="provinceFilter">
                 <option value="">Toàn Việt Nam</option>
               </select></label
             >
@@ -849,13 +855,45 @@
         el.className = "msg " + type;
         el.textContent = message;
       }
+      function areaApi() {
+        const unitedStates = $("#areaCountry").value === "US";
+        return unitedStates
+          ? {
+              base: "/areas/us",
+              parentKey: "stateId",
+              parentsEndpoint: "/areas/us/states",
+              parentsKey: "states",
+              parentLabel: "State",
+              countryLabel: "Hoa Kỳ",
+              areaLabel: "county",
+              allLabel: "Toàn Hoa Kỳ",
+              defaultView: [39.8, -98.5, 4],
+              batchEndpoint: "/jobs/batch/us",
+            }
+          : {
+              base: "/areas/vn",
+              parentKey: "provinceId",
+              parentsEndpoint: "/areas/vn/provinces",
+              parentsKey: "provinces",
+              parentLabel: "Tỉnh/thành cấp tỉnh",
+              countryLabel: "Việt Nam",
+              areaLabel: "khu vực",
+              allLabel: "Toàn Việt Nam",
+              defaultView: [16.1, 106.2, 6],
+              batchEndpoint: "/jobs/batch",
+            };
+      }
       async function loadVietnamAreas() {
+        const api = areaApi();
+        $("#areasTitle").textContent = `Chọn khu vực ${api.countryLabel}`;
+        $("#areasLead").textContent = `Chọn các ${api.areaLabel} quét trên bản đồ. Mỗi khu vực tạo một đơn riêng, dùng polygon đã lưu để phủ đủ grid.`;
+        $("#areaParentLabel").textContent = api.parentLabel;
         try {
-          const status = await json("/areas/vn/status");
+          const status = await json(`${api.base}/status`);
           const tags = $("#areaStatus");
           tags.hidden = false;
           tags.innerHTML = status.ready
-            ? `<span class="pill">${fmt.format(status.crawlAreas)} khu vực quét</span><span class="pill">${fmt.format(status.provinces)} tỉnh/thành</span><span class="pill">Cập nhật ${new Date(status.importedAt).toLocaleDateString("vi-VN")}</span>`
+            ? `<span class="pill">${fmt.format(status.crawlAreas)} ${api.areaLabel} quét</span><span class="pill">${fmt.format(status.provinces)} ${api.parentLabel}</span><span class="pill">Cập nhật ${new Date(status.importedAt).toLocaleDateString("vi-VN")}</span>`
             : `<span class="pill">Chưa có catalog</span>`;
           if (!status.ready) {
             $("#areaWorkspace").hidden = true;
@@ -865,12 +903,16 @@
               "Chưa có dữ liệu ranh giới. Nhấn “Nạp/cập nhật catalog” để tải một lần và lưu cục bộ."
             );
           }
-          setAreaMessage("Chọn tỉnh để tải bản đồ nhẹ hơn, hoặc xem toàn Việt Nam.");
+          setAreaMessage(
+            `Chọn ${api.parentLabel} để tải bản đồ nhẹ hơn${api.countryLabel === "Hoa Kỳ" ? "; map không tải toàn bộ county cùng lúc." : ""}`
+          );
           if (!$("#provinceFilter").dataset.loaded) {
-            const { provinces } = await json("/areas/vn/provinces");
+            const parents = await json(api.parentsEndpoint);
             $("#provinceFilter").insertAdjacentHTML(
               "beforeend",
-              provinces.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")
+              parents[api.parentsKey]
+                .map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`)
+                .join("")
             );
             $("#provinceFilter").dataset.loaded = "true";
           }
@@ -879,7 +921,10 @@
           $("#areaSelectionBar").hidden = false;
           if (!areaMap && typeof L !== "undefined") {
             areaRenderer = L.canvas({ padding: 0.35 });
-            areaMap = L.map("areaMap", { preferCanvas: true }).setView([16.1, 106.2], 6);
+            areaMap = L.map("areaMap", { preferCanvas: true }).setView(
+              api.defaultView.slice(0, 2),
+              api.defaultView[2]
+            );
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
               attribution: "&copy; OpenStreetMap",
             }).addTo(areaMap);
@@ -890,17 +935,23 @@
         }
       }
       async function refreshAreaList({ geometry = false, fit = false } = {}) {
+        const api = areaApi();
         const provinceId = $("#provinceFilter").value;
         const q = $("#areaSearch").value.trim();
         try {
           const result = await json(
-            `/areas/vn?provinceId=${encodeURIComponent(provinceId)}&q=${encodeURIComponent(q)}`
+            `${api.base}?${api.parentKey}=${encodeURIComponent(provinceId)}&q=${encodeURIComponent(q)}`
           );
           areaCatalog = result.areas;
           renderAreaList();
           if (!geometry) return;
+          if (api.countryLabel === "Hoa Kỳ" && !provinceId) {
+            if (areaLayer) areaMap.removeLayer(areaLayer);
+            areaLayer = null;
+            return;
+          }
           const featureCollection = await json(
-            `/areas/vn/geojson?provinceId=${encodeURIComponent(provinceId)}`
+            `${api.base}/geojson?${api.parentKey}=${encodeURIComponent(provinceId)}`
           );
           renderAreaMap(featureCollection, fit);
         } catch (error) {
@@ -908,14 +959,15 @@
         }
       }
       function renderAreaList() {
+        const api = areaApi();
         const visible = areaCatalog.slice(0, 300);
         $("#areaListMeta").textContent =
-          `${fmt.format(areaCatalog.length)} khu vực${areaCatalog.length > visible.length ? ` · hiển thị ${visible.length} đầu` : ""}`;
+          `${fmt.format(areaCatalog.length)} ${api.areaLabel}${areaCatalog.length > visible.length ? ` · hiển thị ${visible.length} đầu` : ""}`;
         $("#areaList").innerHTML = visible.length
           ? visible
               .map(
                 (area) =>
-                  `<button class="area-row" type="button" data-area-id="${esc(area.id)}" aria-pressed="${selectedAreaIds.has(area.id)}"><i class="area-check" aria-hidden="true"></i><span><b>${esc(area.name)}</b>${esc(area.parentName || "Chưa xác định tỉnh")}</span></button>`
+                  `<button class="area-row" type="button" data-area-id="${esc(area.id)}" aria-pressed="${selectedAreaIds.has(area.id)}"><i class="area-check" aria-hidden="true"></i><span><b>${esc(area.name)}</b>${esc(area.parentName || "Chưa xác định")}</span></button>`
               )
               .join("")
           : '<p class="empty-area">Không có khu vực phù hợp.</p>';
@@ -978,22 +1030,34 @@
         if (button) toggleArea(button.dataset.areaId);
       };
       $("#provinceFilter").onchange = () => refreshAreaList({ geometry: true, fit: true });
+      $("#areaCountry").onchange = () => {
+        const api = areaApi();
+        selectedAreaIds.clear();
+        areaCatalog = [];
+        $("#provinceFilter").dataset.loaded = "";
+        $("#provinceFilter").innerHTML = `<option value="">${api.allLabel}</option>`;
+        if (areaLayer) areaMap?.removeLayer(areaLayer);
+        areaLayer = null;
+        if (areaMap) areaMap.setView(api.defaultView.slice(0, 2), api.defaultView[2]);
+        loadVietnamAreas();
+      };
       $("#areaSearch").oninput = () => {
         clearTimeout(areaSearchTimer);
         areaSearchTimer = setTimeout(() => refreshAreaList(), 220);
       };
       $("#importVn").onclick = async () => {
+        const api = areaApi();
         const button = $("#importVn"),
           log = $("#importLog");
         button.disabled = true;
         log.hidden = false;
         log.textContent = "";
         setAreaMessage(
-          "Đang nạp catalog Việt Nam. Việc này chạy nền và chỉ cần làm lại khi muốn cập nhật dữ liệu."
+          `Đang nạp catalog ${api.countryLabel}. Việc này chạy nền và chỉ cần làm lại khi muốn cập nhật dữ liệu.`
         );
         try {
-          const started = await json("/areas/vn/import", { method: "POST" });
-          const stream = new EventSource(`/areas/vn/import/${started.id}/stream`);
+          const started = await json(`${api.base}/import`, { method: "POST" });
+          const stream = new EventSource(`${api.base}/import/${started.id}/stream`);
           stream.onmessage = (event) => {
             log.textContent += event.data.replace(/\\n/g, "\n") + "\n";
             log.scrollTop = log.scrollHeight;
@@ -1004,7 +1068,7 @@
             if (event.data !== "finished")
               return setAreaMessage("Không thể nhập catalog. Xem log để thử lại.", "error");
             $("#provinceFilter").dataset.loaded = "";
-            $("#provinceFilter").innerHTML = '<option value="">Toàn Việt Nam</option>';
+            $("#provinceFilter").innerHTML = `<option value="">${api.allLabel}</option>`;
             areaCatalog = [];
             await loadVietnamAreas();
             setAreaMessage("Catalog đã sẵn sàng. Bạn có thể chọn khu vực để tạo đơn.", "success");
@@ -1016,11 +1080,12 @@
       };
       $("#batchForm").onsubmit = async (event) => {
         event.preventDefault();
+        const api = areaApi();
         const form = new FormData(event.target),
           button = $("#batchBtn");
         button.disabled = true;
         try {
-          const result = await json("/jobs/batch", {
+          const result = await json(api.batchEndpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
