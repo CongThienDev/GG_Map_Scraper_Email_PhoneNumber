@@ -69,6 +69,9 @@ function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaC
       queuePosition,
       ...job.resultsPaths,
       csvUrl: `/results/${path.relative(scraperService.resultsBase, job.resultsPaths.CSV_PATH)}`,
+      reportCsvUrl: job.resultsPaths.REPORT_CSV_PATH
+        ? `/results/${path.relative(scraperService.resultsBase, job.resultsPaths.REPORT_CSV_PATH)}`
+        : null,
       checkpointUrl: `/results/${path.relative(scraperService.resultsBase, job.resultsPaths.CHECKPOINT_PATH)}`,
       queued: Boolean(queued),
     });
@@ -91,6 +94,7 @@ function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaC
       id: job.id,
       status: job.status,
       queuePosition: scraperService.queuePosition(job.id),
+      report: scraperService.getJobReport?.(job.id) || null,
       ...job.resultsPaths,
     });
   });
@@ -100,18 +104,35 @@ function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaC
     if (!job) return res.status(404).json({ error: "Not found" });
 
     const csvPath = job.resultsPaths.CSV_PATH;
-    if (!csvPath || !fs.existsSync(csvPath))
-      return res.status(404).json({ error: "CSV not found" });
 
     try {
-      const csvContent = fs.readFileSync(csvPath, "utf8");
-      const records = csvParse(csvContent, { columns: true, skip_empty_lines: true });
+      const records =
+        csvPath && fs.existsSync(csvPath)
+          ? csvParse(fs.readFileSync(csvPath, "utf8"), { columns: true, skip_empty_lines: true })
+          : [];
+      const report = scraperService.getJobReport?.(job.id) || {};
       const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet("data");
+      const summary = wb.addWorksheet("Job report");
+      summary.columns = [
+        { header: "Metric", key: "metric", width: 30 },
+        { header: "Value", key: "value", width: 48 },
+      ];
+      Object.entries(report).forEach(([metric, value]) => summary.addRow({ metric, value }));
+      summary.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+      summary.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1D4ED8" } };
+      summary.views = [{ state: "frozen", ySplit: 1 }];
+
+      const ws = wb.addWorksheet("Leads");
 
       if (records.length) {
         ws.columns = Object.keys(records[0]).map((k) => ({ header: k, key: k }));
         records.forEach((r) => ws.addRow(r));
+        ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+        ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1D4ED8" } };
+        ws.views = [{ state: "frozen", ySplit: 1 }];
+        ws.columns.forEach((column) => {
+          column.width = Math.min(50, Math.max(12, String(column.header || "").length + 2));
+        });
       }
 
       res.setHeader(

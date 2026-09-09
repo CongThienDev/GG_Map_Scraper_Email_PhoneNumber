@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const { sanitize, toInt, toBool } = require("../utils/parsers");
+const { buildJobReport, writeJobReport } = require("./jobReportService");
 
 function createScraperService({ config, store }) {
   const { defaults, resultsBase, scriptPath, rootDir } = config;
@@ -10,6 +11,46 @@ function createScraperService({ config, store }) {
   fs.mkdirSync(resultsBase, { recursive: true });
   if (!fs.existsSync(scriptPath)) {
     throw new Error(`Không thấy scraper: ${scriptPath}`);
+  }
+
+  function ensureJobTracking(job) {
+    job.resultsPaths ||= {};
+    if (!job.resultsPaths.REPORT_CSV_PATH && job.resultsPaths.RESULTS_DIR) {
+      job.resultsPaths.REPORT_CSV_PATH = path.join(job.resultsPaths.RESULTS_DIR, "job_report.csv");
+    }
+    if (!job.firstStartedAt && job.startedAt) job.firstStartedAt = job.startedAt;
+    if (!Number.isFinite(Number(job.activeDurationMs))) job.activeDurationMs = 0;
+    if (!job.activeDurationMs && job.startedAt && job.finishedAt) {
+      job.activeDurationMs = Math.max(0, job.finishedAt - job.startedAt);
+    }
+    if (!job.lastEndedAt && job.finishedAt) job.lastEndedAt = job.finishedAt;
+    if (job.status === "finished" && !job.completedAt) job.completedAt = job.finishedAt || null;
+  }
+
+  function checkpointFor(job) {
+    ensureJobTracking(job);
+    return store.readJsonCached(job.resultsPaths?.CHECKPOINT_PATH, {});
+  }
+
+  function reportFor(job) {
+    return buildJobReport(job, checkpointFor(job));
+  }
+
+  function refreshJobReport(job) {
+    const report = reportFor(job);
+    writeJobReport(job.resultsPaths?.REPORT_CSV_PATH, report);
+    return report;
+  }
+
+  function finishCurrentRun(job, status) {
+    const now = Date.now();
+    if (["running", "stopping"].includes(job.status) && job.startedAt) {
+      job.activeDurationMs = (Number(job.activeDurationMs) || 0) + Math.max(0, now - job.startedAt);
+    }
+    job.status = status;
+    job.finishedAt = now;
+    job.lastEndedAt = now;
+    if (status === "finished") job.completedAt = now;
   }
 
   function restoreUntrackedJobs() {
@@ -76,6 +117,7 @@ function createScraperService({ config, store }) {
           RESULTS_DIR: resultsDir,
           CSV_PATH: csvName ? path.join(resultsDir, csvName) : path.join(resultsDir, "results.csv"),
           CHECKPOINT_PATH: fullCheckpointPath,
+          REPORT_CSV_PATH: path.join(resultsDir, "job_report.csv"),
           CENTERS_PATH: path.join(resultsDir, "centers.json"),
           POLYGON_OUT_PATH: path.join(resultsDir, "polygon_used.json"),
         },
@@ -84,6 +126,8 @@ function createScraperService({ config, store }) {
   }
 
   restoreUntrackedJobs();
+  store.allJobs().forEach((job) => refreshJobReport(job));
+  store.persist();
 
   function currentRunning() {
     return store.allJobs().filter((j) => j.status === "running").length;
@@ -100,8 +144,9 @@ function createScraperService({ config, store }) {
     const csvPath = path.join(resultsDir, `${citySafe}_${kwSafe}.csv`);
     const checkpointPath = path.join(resultsDir, `checkpoint_${citySafe}_${kwSafe}.json`);
     const profileDir = path.join(resultsDir, `.profile_${stamp}`);
+    const reportCsvPath = path.join(resultsDir, "job_report.csv");
 
-    return { resultsDir, csvPath, checkpointPath, profileDir };
+    return { resultsDir, csvPath, checkpointPath, profileDir, reportCsvPath };
   }
 
   function pushLog(job, line, stream = "stdout") {
@@ -178,22 +223,24 @@ function createScraperService({ config, store }) {
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (error) {
-      job.status = "failed";
-      job.finishedAt = Date.now();
+      finishCurrentRun(job, "failed");
       job.lastError = `Không thể khởi động worker: ${error.message}`;
       pushLog(job, `${job.lastError}\n`, "process");
       store.persist();
+      refreshJobReport(job);
       return;
     }
 
     job.child = child;
     job.status = "running";
     job.startedAt = Date.now();
+    job.firstStartedAt ||= job.startedAt;
     job.finishedAt = null;
     job.lastError = null;
     job.stderrTail = "";
     job.stopRequested = false;
     store.persist();
+    refreshJobReport(job);
 
     child.stdout.on("data", (buf) => pushLog(job, buf.toString(), "stdout"));
     child.stderr.on("data", (buf) => pushLog(job, buf.toString(), "stderr"));
@@ -201,22 +248,24 @@ function createScraperService({ config, store }) {
       job.lastError = `Worker error: ${error.message}`;
       pushLog(job, `${job.lastError}\n`, "error");
       if (job.status === "running") {
-        job.status = "failed";
-        job.finishedAt = Date.now();
+        finishCurrentRun(job, "failed");
         store.persist();
+        refreshJobReport(job);
         startNextFromQueue();
       }
     });
     child.on("exit", (code, signal) => {
-      job.finishedAt = Date.now();
-      if (job.stopRequested) job.status = "paused";
-      else job.status = code === 0 ? "finished" : "failed";
+      const wasActive = ["running", "stopping"].includes(job.status);
+      if (wasActive) {
+        finishCurrentRun(job, job.stopRequested ? "paused" : code === 0 ? "finished" : "failed");
+      }
       if (job.status === "failed") {
         job.lastError =
           job.stderrTail?.trim() || `Worker dừng với mã ${code}${signal ? ` (${signal})` : ""}.`;
       }
       pushLog(job, `Process exited with code ${code}${signal ? `, signal ${signal}` : ""}`, "exit");
       store.persist();
+      refreshJobReport(job);
       startNextFromQueue();
     });
   }
@@ -250,7 +299,10 @@ function createScraperService({ config, store }) {
     const ALLOW_ROUGH_BBOX = toBool(body.ALLOW_ROUGH_BBOX, defaults.allowRoughBbox);
 
     const id = store.nextJobId();
-    const { resultsDir, csvPath, checkpointPath, profileDir } = makeEnvAndPaths({ city, keywords });
+    const { resultsDir, csvPath, checkpointPath, profileDir, reportCsvPath } = makeEnvAndPaths({
+      city,
+      keywords,
+    });
     const centersPath = path.join(resultsDir, "centers.json");
     const polygonOutPath = path.join(resultsDir, "polygon_used.json");
 
@@ -258,6 +310,10 @@ function createScraperService({ config, store }) {
       id,
       status: "queued",
       createdAt: Date.now(),
+      firstStartedAt: null,
+      activeDurationMs: 0,
+      completedAt: null,
+      lastEndedAt: null,
       env: {
         CITY: city,
         COUNTRY: country,
@@ -285,12 +341,14 @@ function createScraperService({ config, store }) {
         RESULTS_DIR: resultsDir,
         CSV_PATH: csvPath,
         CHECKPOINT_PATH: checkpointPath,
+        REPORT_CSV_PATH: reportCsvPath,
         CENTERS_PATH: centersPath,
         POLYGON_OUT_PATH: polygonOutPath,
       },
     };
 
     store.addJob(job);
+    refreshJobReport(job);
     if (currentRunning() < maxConcurrent) {
       startJob(job);
       return { job, queued: false };
@@ -305,6 +363,7 @@ function createScraperService({ config, store }) {
       .allJobs()
       .map((j) => {
         const ck = store.readJsonCached(j.resultsPaths.CHECKPOINT_PATH, {});
+        const report = refreshJobReport(j);
         return {
           id: j.id,
           status: j.status,
@@ -318,7 +377,9 @@ function createScraperService({ config, store }) {
           queuePosition: j.status === "queued" ? store.queuePosition(j.id) : null,
           ...j.resultsPaths,
           csvUrl: `/results/${path.relative(resultsBase, j.resultsPaths.CSV_PATH)}`,
+          reportCsvUrl: `/results/${path.relative(resultsBase, j.resultsPaths.REPORT_CSV_PATH)}`,
           checkpointUrl: `/results/${path.relative(resultsBase, j.resultsPaths.CHECKPOINT_PATH)}`,
+          report,
           checkpointSummary: {
             processedCount: ck.processedCount || 0,
             currentCell: ck.currentCell || ck.nextCellIndex || 0,
@@ -362,11 +423,17 @@ function createScraperService({ config, store }) {
     return store.getJob(id);
   }
 
+  function getJobReport(id) {
+    const job = store.getJob(id);
+    return job ? refreshJobReport(job) : null;
+  }
+
   function getJobProgress(id) {
     const j = store.getJob(id);
     if (!j) return null;
 
     const ck = store.readJsonCached(j.resultsPaths.CHECKPOINT_PATH, {});
+    const report = refreshJobReport(j);
     const centers = store.readJsonCached(j.resultsPaths.CENTERS_PATH, []);
     const polygonInline = store.readJsonCached(j.resultsPaths.POLYGON_OUT_PATH, null);
 
@@ -405,6 +472,7 @@ function createScraperService({ config, store }) {
       centersInline: Array.isArray(centers) ? centers : [],
       polygonInline,
       queuePosition: queuePosition(j.id),
+      report,
     };
   }
 
@@ -415,8 +483,10 @@ function createScraperService({ config, store }) {
     if (j.status === "queued") {
       store.removeFromQueue(j.id);
       j.status = "paused";
+      j.lastEndedAt = Date.now();
       j.lastError = null;
       store.persist();
+      refreshJobReport(j);
       return { status: j.status };
     }
 
@@ -429,6 +499,7 @@ function createScraperService({ config, store }) {
       j.child.kill("SIGINT");
       j.status = "stopping";
       store.persist();
+      refreshJobReport(j);
       return { status: j.status };
     } catch (e) {
       return { error: String(e) };
@@ -452,6 +523,7 @@ function createScraperService({ config, store }) {
     job.status = "queued";
     store.pushQueue(job.id);
     store.persist();
+    refreshJobReport(job);
     return { job, queued: true, queuePosition: store.queueLength() };
   }
 
@@ -479,6 +551,7 @@ function createScraperService({ config, store }) {
     createJob,
     listJobs,
     getJob,
+    getJobReport,
     getJobProgress,
     queuePosition,
     setMaxConcurrent,

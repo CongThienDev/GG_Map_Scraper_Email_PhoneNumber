@@ -844,6 +844,19 @@
       $("#copyCountry").onclick = () =>
         ($("#polyForm [name=country]").value = $("#jobForm [name=country]").value);
       const fmt = new Intl.NumberFormat("vi-VN");
+      const dateTimeFmt = new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "medium" });
+      function formatDateTime(value) {
+        const date = value ? new Date(value) : null;
+        return date && !Number.isNaN(date.valueOf()) ? dateTimeFmt.format(date) : "—";
+      }
+      function formatDuration(seconds) {
+        const total = Number(seconds);
+        if (!Number.isFinite(total)) return "—";
+        const hours = Math.floor(total / 3600),
+          minutes = Math.floor((total % 3600) / 60),
+          remaining = Math.floor(total % 60);
+        return hours ? `${hours}g ${minutes}p ${remaining}s` : minutes ? `${minutes}p ${remaining}s` : `${remaining}s`;
+      }
       async function json(url, options) {
         const response = await fetch(url, options);
         const body = await response.json().catch(() => ({}));
@@ -1216,13 +1229,15 @@
                   efficiency = bm.earlyDuplicatesSkipped
                     ? ` · tránh ${fmt.format(bm.earlyDuplicatesSkipped)} detail trùng`
                     : "",
+                  report = j.report || {},
+                  timing = `<div class="meta">Tạo: ${esc(formatDateTime(report.created_at))} · Chạy: ${esc(formatDuration(report.active_duration_seconds))}${report.completed_at ? ` · Xong: ${esc(formatDateTime(report.completed_at))}` : ""}</div>`,
                   resumable = ["failed", "paused", "interrupted"].includes(j.status),
                   error = j.lastError
                     ? `<div class="meta error" title="${esc(j.lastError)}">Lỗi: ${esc(j.lastError).slice(0, 180)}</div>`
                     : "",
-                  files = `<div class="file-actions"><a class="btn" href="${j.csvUrl}" target="_blank">CSV</a><a class="btn" href="/jobs/${j.id}/excel" target="_blank">Excel</a><a class="btn" href="${j.checkpointUrl}" target="_blank">Checkpoint</a></div>`,
+                  files = `<div class="file-actions"><a class="btn" href="${j.csvUrl}" target="_blank">Leads CSV</a>${j.reportCsvUrl ? `<a class="btn" href="${j.reportCsvUrl}" target="_blank">Báo cáo CSV</a>` : ""}<a class="btn" href="/jobs/${j.id}/excel" target="_blank">Excel</a><a class="btn" href="${j.checkpointUrl}" target="_blank">Checkpoint</a></div>`,
                   queueInfo = j.status === "queued" && j.queuePosition ? ` · vị trí chờ #${j.queuePosition}` : "";
-                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} · ${esc(j.CITY)}</div><div class="meta">${esc(j.COUNTRY || "Chưa ghi quốc gia")}${queueInfo}</div>${error}</div><div><div class="meta"><b>${n}${t ? " / " + t : ""}</b> grid · ${c.processedCount || 0} doanh nghiệp${efficiency}</div><div class="track"><div class="bar" style="width:${p}%"></div></div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">Xem chi tiết</button>${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Tạm dừng</button>` : ""}${resumable ? `<button class="btn primary" data-a="resume" data-id="${j.id}">Tiếp tục${t ? ` (${Math.min(n + 1, t)}/${t})` : ""}</button>` : ""}${files}<button class="btn danger" data-a="del" data-id="${j.id}">Xóa</button></div></article>`;
+                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} · ${esc(j.CITY)}</div><div class="meta">${esc(j.COUNTRY || "Chưa ghi quốc gia")}${queueInfo}</div>${timing}${error}</div><div><div class="meta"><b>${n}${t ? " / " + t : ""}</b> grid · ${c.processedCount || 0} doanh nghiệp${efficiency}</div><div class="track"><div class="bar" style="width:${p}%"></div></div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">Xem chi tiết</button>${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Tạm dừng</button>` : ""}${resumable ? `<button class="btn primary" data-a="resume" data-id="${j.id}">Tiếp tục${t ? ` (${Math.min(n + 1, t)}/${t})` : ""}</button>` : ""}${files}<button class="btn danger" data-a="del" data-id="${j.id}">Xóa</button></div></article>`;
               })
               .join("")
           : '<div class="card" style="max-width:none"><h2>Chưa có đợt quét phù hợp</h2><p class="lead">Tạo đơn quét mới để bắt đầu.</p></div>';
@@ -1293,9 +1308,9 @@
         const r = await fetch("/jobs/" + id + "/progress");
         if (!r.ok) return;
         const x = await r.json();
-        const bm = x.benchmarkMetrics || {};
+        const bm = x.benchmarkMetrics || {}, report = x.report || {};
         $("#sum").innerHTML =
-          `<span>Grid: <b>${x.currentCell || 0} / ${x.totalCells || "?"}</b></span><span>Doanh nghiệp: <b>${x.processedCount || 0}</b></span><span>Detail mở: <b>${bm.detailPagesOpened || 0}</b></span><span>Trùng tránh được: <b>${bm.earlyDuplicatesSkipped || 0}</b></span><span>Từ khóa: <b>${esc(x.lastKeyword || "-")}</b></span>`;
+          `<span>Tạo: <b>${esc(formatDateTime(report.created_at))}</b></span><span>Chạy: <b>${esc(formatDuration(report.active_duration_seconds))}</b></span>${report.completed_at ? `<span>Hoàn thành: <b>${esc(formatDateTime(report.completed_at))}</b></span>` : ""}<span>Grid: <b>${x.currentCell || 0} / ${x.totalCells || "?"}</b></span><span>Doanh nghiệp: <b>${x.processedCount || 0}</b></span><span>Detail mở: <b>${bm.detailPagesOpened || 0}</b></span><span>Trùng tránh được: <b>${bm.earlyDuplicatesSkipped || 0}</b></span><span>Từ khóa: <b>${esc(x.lastKeyword || "-")}</b></span>`;
         renderMaps(x);
       }
       function renderMaps(x) {

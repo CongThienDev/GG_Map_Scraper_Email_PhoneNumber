@@ -1,5 +1,10 @@
 const express = require("express");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { Buffer } = require("buffer");
 const request = require("supertest");
+const ExcelJS = require("exceljs");
 const { createJobRoutes } = require("../app/routes/jobRoutes");
 
 function createTestApp(scraperService) {
@@ -141,5 +146,41 @@ describe("jobRoutes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ id: "1", status: "running", queued: false });
+  });
+
+  test("GET /jobs/:id/excel includes a job-report sheet and leads sheet", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "maps-report-route-"));
+    const csvPath = path.join(tempDir, "leads.csv");
+    fs.writeFileSync(csvPath, "STT,Name\n1,Example Dental\n", "utf8");
+    const scraperService = {
+      getJob: jest.fn().mockReturnValue({ id: "1", resultsPaths: { CSV_PATH: csvPath } }),
+      getJobReport: jest.fn().mockReturnValue({
+        job_id: "1",
+        status: "finished",
+        created_at: "2026-09-09T00:00:00.000Z",
+        completed_at: "2026-09-09T00:01:00.000Z",
+        active_duration_seconds: 60,
+      }),
+    };
+    const app = createTestApp(scraperService);
+
+    try {
+      const res = await request(app)
+        .get("/jobs/1/excel")
+        .buffer(true)
+        .parse((response, callback) => {
+          const chunks = [];
+          response.on("data", (chunk) => chunks.push(chunk));
+          response.on("end", () => callback(null, Buffer.concat(chunks)));
+        });
+      expect(res.status).toBe(200);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(res.body);
+      expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Job report", "Leads"]);
+      expect(workbook.getWorksheet("Job report").getCell("A2").value).toBe("job_id");
+      expect(workbook.getWorksheet("Leads").getCell("B2").value).toBe("Example Dental");
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

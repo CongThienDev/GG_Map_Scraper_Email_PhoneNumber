@@ -79,6 +79,37 @@ describe("scraperService", () => {
     expect(ret.job.status).toBe("finished");
   });
 
+  test("writes a CSV report with lifecycle and crawl metrics", () => {
+    const child = makeFakeChild();
+    spawn.mockReturnValue(child);
+
+    const store = createJobStore();
+    const service = createScraperService({ config: makeConfig(tempDir), store });
+    const { job } = service.createJob({ city: "Hội An", country: "Việt Nam", keywords: "spa" });
+    fs.writeFileSync(
+      job.resultsPaths.CHECKPOINT_PATH,
+      JSON.stringify({
+        currentCell: 4,
+        totalCells: 10,
+        processedCount: 17,
+        benchmarkMetrics: { detailPagesOpened: 20, earlyDuplicatesSkipped: 8, urlsScheduled: 28 },
+      }),
+      "utf8"
+    );
+
+    child.emit("exit", 0);
+
+    expect(job.status).toBe("finished");
+    expect(job.completedAt).toEqual(expect.any(Number));
+    expect(fs.existsSync(job.resultsPaths.REPORT_CSV_PATH)).toBe(true);
+    const [header, row] = fs.readFileSync(job.resultsPaths.REPORT_CSV_PATH, "utf8").trim().split("\n");
+    expect(header).toContain("created_at");
+    expect(header).toContain("completed_at");
+    expect(header).toContain("active_duration_seconds");
+    expect(header).toContain("duplicates_avoided");
+    expect(row).toContain("finished");
+  });
+
   test("queues jobs when max concurrency is reached and auto-starts on previous exit", () => {
     const child1 = makeFakeChild();
     const child2 = makeFakeChild();
