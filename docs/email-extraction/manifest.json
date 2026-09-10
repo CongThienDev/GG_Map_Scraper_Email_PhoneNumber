@@ -1,0 +1,187 @@
+{
+  "export_date": "2026-09-10",
+  "scope": "Chat messages plus source workbook and exploratory pilot evidence; not an implemented production bot",
+  "message_count": 16,
+  "files": [
+    {
+      "path": "CHAT_SESSION.md",
+      "bytes": 43735,
+      "sha256": "9d03f16455831b45ded387f5d73750bf7b8584ae0227f74fb8ae74d630d1c638"
+    },
+    {
+      "path": "HANDOFF.md",
+      "bytes": 14205,
+      "sha256": "be39e3b4b6d1346a3e691a865566e1c979156404e17626778802fddcb7780c54"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5310,
+      "sha256": "ac531c40bc5375cf1ccbab06dbaca2c59ced4a38b26811bc8545122a3bc02a19"
+    },
+    {
+      "path": "chat-messages.json",
+      "bytes": 44270,
+      "sha256": "0851d3e3d068da8eb374ebd2a272dcef1b5a08f70a57dfbcfd822b1a0172e00f"
+    },
+    {
+      "path": "data/Kings_dentist.xlsx",
+      "bytes": 192936,
+      "sha256": "0795e6e9b8066df0ec33a4d5b4be70ed8e5952ff681677c450b43302daf0d8f3"
+    },
+    {
+      "path": "pilot/REPORT.md",
+      "bytes": 12796,
+      "sha256": "b2d20368f0a30164309f09f8d4b2dca1cf5662e6108173cf295856aaa110f098"
+    },
+    {
+      "path": "pilot/browser.cjs",
+      "bytes": 3313,
+      "sha256": "94502016c4d920cdfbb2446ee23c036522452b646c050d65b602550fee58caa1"
+    },
+    {
+      "path": "pilot/http-results.json",
+      "bytes": 250572,
+      "sha256": "ed61657016d77df5381d115d4b2cf735939256d5268ced1de7cc3c9bbfb29229"
+    },
+    {
+      "path": "pilot/pilot-results.json",
+      "bytes": 3001,
+      "sha256": "24c855afe4430be290513d69fdba0d79923468e8f852ad445ceb043b4c69d79b"
+    },
+    {
+      "path": "pilot/pilot.py",
+      "bytes": 3944,
+      "sha256": "bb91edc7b0dbfc84b3be8efed18e66324afacdeafb19ad24cdee0c2af33b201b"
+    },
+    {
+      "path": "pilot/sample.json",
+      "bytes": 6961,
+      "sha256": "3c4ec193f8bd6ac1a32e187df7957fcf0c7334272ab68a4d50f627c0ee26184a"
+    },
+    {
+      "path": "pilot/snapshots/http-113-0.html.gz",
+      "bytes": 92286,
+      "sha256": "97900b7b6039fe0f73444ea88f6d237cae9f6c44be3d690215483521d76077e3"
+    },
+    {
+      "path": "pilot/snapshots/http-113-1.html.gz",
+      "bytes": 104137,
+      "sha256": "8f3e87ce7cde90df35a2fcf5bfaf2bab3effccafd4c17767354a024af0dcf817"
+    },
+    {
+      "path": "pilot/snapshots/http-113-2.html.gz",
+      "bytes": 106226,
+      "sha256": "720675f8dcb9a6176278927a66646c178a39b3df4750acacaf06902372a917b8"
+    },
+    {
+      "path": "pilot/snapshots/http-194-0.html.gz",
+      "bytes": 42294,
+      "sha256": "2986cbb245c3bf778209544d099daea2b3a8160fe260cb5ce928934f0f5b9093"
+    },
+    {
+      "path": "pilot/snapshots/http-194-1.html.gz",
+      "bytes": 39859,
+      "sha256": "4c25f2fb78d852df739ff7250867d8c8bfcb2e4fc57772d60dd7a20867920989"
+    },
+    {
+      "path": "pilot/snapshots/http-194-2.html.gz",
+      "bytes": 42294,
+      "sha256": "05cc75153c464d3eb41ae54f1545b8c8a2de86ad9d41cf832dcad66ed5deba3d"
+    },
+    {
+      "path": "pilot/snapshots/http-2-0.html.gz",
+      "bytes": 16945,
+      "sha256": "24d8c224a1a7ab4111d84d0d9fcea618c626f8be4e61bf6c5363d13489166c4f"
+    },
+    {
+      "path": "pilot/snapshots/http-2-1.html.gz",
+      "bytes": 10618,
+      "sha256": "667a6ec6895415dc7c8b1f33acacf6c7d37d616d10df462d41e6ce09d13674d1"
+    },
+    {
+      "path": "pilot/snapshots/http-2-2.html.gz",
+      "bytes": 10904,
+      "sha256": "4c81a12fefb861bca8e7b144773a5807bc4313c3292b66c8431b20ca669eee35"
+    },
+    {
+      "path": "pilot/snapshots/http-20-0.html.gz",
+      "bytes": 20549,
+      "sha256": "515666d70498645e05977a527bd4a0a66bf0a6e7254f209793b7f96055ddcd9a"
+    },
+    {
+      "path": "pilot/snapshots/http-20-1.html.gz",
+      "bytes": 16451,
+      "sha256": "f0ec4fc5117057473dc2f65591eea2196f13b303cadafd684e25ef72a70acf54"
+    },
+    {
+      "path": "pilot/snapshots/http-282-0.html.gz",
+      "bytes": 37441,
+      "sha256": "f79384610e807526204786063730c4f9fa0e4ac365c01ef7c212421bc35e2bef"
+    },
+    {
+      "path": "pilot/snapshots/http-282-1.html.gz",
+      "bytes": 28848,
+      "sha256": "2adc08842217df6c1a38a2bfec15e89b40bd7788004815b2f488c608c36c1849"
+    },
+    {
+      "path": "pilot/snapshots/http-282-2.html.gz",
+      "bytes": 28298,
+      "sha256": "155dbdecbdfc58f558f27d4a2ba31a03cf33583d39931fce956620a6e3ac646d"
+    },
+    {
+      "path": "pilot/snapshots/http-3-0.html.gz",
+      "bytes": 16205,
+      "sha256": "1cdaa74217368bbfbca650bc5a9cd0d67bc94bf7893bc5642ca45f1e77cb1017"
+    },
+    {
+      "path": "pilot/snapshots/http-3-1.html.gz",
+      "bytes": 10321,
+      "sha256": "42f2047f2b0102beda1e21ffe25255359f366262f67800fd29180dcdc3c1790c"
+    },
+    {
+      "path": "pilot/snapshots/http-3-2.html.gz",
+      "bytes": 16025,
+      "sha256": "2338a0f0ec9c76cd7bb7c425358f18ec44bf934158025a22d98edf5a8643d231"
+    },
+    {
+      "path": "pilot/snapshots/http-491-0.html.gz",
+      "bytes": 2864,
+      "sha256": "6b992e199a826d6c982470045a69399297a9df8f6fad2906844776ab3cc4ad21"
+    },
+    {
+      "path": "pilot/snapshots/http-491-1.html.gz",
+      "bytes": 4516,
+      "sha256": "ca21b24e64efa55424cb9f4b3957e03600bc2800ec69962a877777db5de1aae7"
+    },
+    {
+      "path": "pilot/snapshots/http-495-0.html.gz",
+      "bytes": 59982,
+      "sha256": "158bd948d4c973957d522c32161ba4db997955f64430970bf4a75952b104fe7e"
+    },
+    {
+      "path": "pilot/snapshots/http-495-1.html.gz",
+      "bytes": 54095,
+      "sha256": "0672f8bd7943b2d28c6e14ee620248379d8da8e3854874fe21c8d0f60df19e95"
+    },
+    {
+      "path": "pilot/snapshots/http-708-0.html.gz",
+      "bytes": 129553,
+      "sha256": "f342a3b9edda556eb632db3df7bc1fdb15d05f84022c29ed44085826c896814f"
+    },
+    {
+      "path": "pilot/snapshots/iad-upper-east.html.gz",
+      "bytes": 11170,
+      "sha256": "bab64f92da70e6848b86de969d0e050ca3b7b4364eab04b49f98b37562a03873"
+    },
+    {
+      "path": "pilot/snapshots/marinepark.html.gz",
+      "bytes": 127028,
+      "sha256": "5797ee736ec58a9b3aeed2a5c8be10b7265fe12dcb30c040ce60a4741db1164f"
+    },
+    {
+      "path": "pilot/supplemental-http.json",
+      "bytes": 41941,
+      "sha256": "1da5dd2ffa304e4a80145f07c4674bf530fc26c7f8292e434978810e49e6ec72"
+    }
+  ]
+}

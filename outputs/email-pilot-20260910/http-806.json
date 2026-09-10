@@ -1,0 +1,31 @@
+{
+  "input": {
+    "STT": "805",
+    "Name": "Dental Fillings Brooklyn",
+    "Address": "5221 Church Ave Ste 74cd, Brooklyn, NY 11203",
+    "Phone Number": "+13475279924",
+    "Website": "http://dentalfillingsbrooklyn.net/",
+    "Social": "",
+    "Rating": "",
+    "Review Count": "",
+    "category": "dentist",
+    "City": "Kings",
+    "google_maps_url": "https://www.google.com/maps/place/Dental+Fillings+Brooklyn/data=!4m7!3m6!1s0x89c25dd6f8b6d165:0xcd9364610f5a85ad!8m2!3d40.6524973!4d-73.9278173!16s%2Fg%2F11nvb5wrs6!19sChIJZdG2-NZdwokRrYVaD2Fkk80?authuser=0&hl=en&g_ep=EgoyMDI2MDkwMi4wIJJjKgBIAVAD&rclk=1",
+    "center_lat": "40.645216",
+    "center_lng": "-73.921637",
+    "excel_row": 806
+  },
+  "robots": {
+    "url": "http://dentalfillingsbrooklyn.net/robots.txt",
+    "error": "<urlopen error [Errno 8] nodename nor servname provided, or not known>",
+    "seconds": 0.072
+  },
+  "pages": [
+    {
+      "url": "http://dentalfillingsbrooklyn.net/",
+      "error": "<urlopen error [Errno 8] nodename nor servname provided, or not known>",
+      "seconds": 0.002
+    }
+  ],
+  "seconds": 0.074
+}

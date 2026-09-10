@@ -1,0 +1,41 @@
+{
+  "input": {
+    "STT": "707",
+    "Name": "Kensington Dental Office",
+    "Address": "411 Church Ave, Brooklyn, NY 11218",
+    "Phone Number": "+17188713636",
+    "Website": "https://book2.getweave.com/aacad472-2c9a-4eed-a5bb-b2fc98bb7e26/request-appointment?source=WEBSITE",
+    "Social": "",
+    "Rating": "4.6",
+    "Review Count": "135",
+    "category": "dentist",
+    "City": "Kings",
+    "google_maps_url": "https://www.google.com/maps/place/Kensington+Dental+Office/data=!4m7!3m6!1s0x89c25b28d0047a01:0x33eb75ed41fdb497!8m2!3d40.644371!4d-73.976225!16s%2Fg%2F1tdd1m00!19sChIJAXoE0ChbwokRl7T9Qe116zM?authuser=0&hl=en&g_ep=EgoyMDI2MDkwMi4wIJJjKgBIAVAD&rclk=1",
+    "center_lat": "40.634364",
+    "center_lng": "-73.964264",
+    "excel_row": 708
+  },
+  "robots": {
+    "url": "https://book2.getweave.com/robots.txt",
+    "final_url": "https://book2.getweave.com/robots.txt",
+    "status": 200,
+    "seconds": 2.292,
+    "bytes": 483681
+  },
+  "pages": [
+    {
+      "url": "https://book2.getweave.com/aacad472-2c9a-4eed-a5bb-b2fc98bb7e26/request-appointment?source=WEBSITE",
+      "final_url": "https://book2.getweave.com/aacad472-2c9a-4eed-a5bb-b2fc98bb7e26/request-appointment?source=WEBSITE",
+      "status": 200,
+      "seconds": 1.397,
+      "bytes": 483681,
+      "raw_candidates": [],
+      "text_candidates": [],
+      "mailto": [],
+      "cf_decoded": [],
+      "snippets": [],
+      "links": []
+    }
+  ],
+  "seconds": 3.719
+}
