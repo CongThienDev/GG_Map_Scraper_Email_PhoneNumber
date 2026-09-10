@@ -27,7 +27,7 @@ function activeDurationMs(job, now) {
 
 function buildJobReport(job, checkpoint = {}, now = Date.now()) {
   const metrics = checkpoint.benchmarkMetrics || {};
-  const totalCells = asNumber(checkpoint.totalCells);
+  const totalCells = asNumber(checkpoint.totalCells) || asNumber(job.plannedGridCount);
   const completedCells = asNumber(checkpoint.currentCell || checkpoint.nextCellIndex);
   const leadsFound = asNumber(checkpoint.processedCount);
   const urlsDiscovered = asNumber(metrics.urlsDiscovered);

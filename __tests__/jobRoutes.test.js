@@ -21,6 +21,13 @@ function createTestAppWithCatalog(scraperService, areaCatalogService) {
   return app;
 }
 
+function createTestAppWithUnitedStatesCatalog(scraperService, unitedStatesAreaCatalogService) {
+  const app = express();
+  app.use(express.json());
+  app.use(createJobRoutes({ scraperService, unitedStatesAreaCatalogService }));
+  return app;
+}
+
 describe("jobRoutes", () => {
   test("POST /jobs creates job successfully", async () => {
     const scraperService = {
@@ -66,7 +73,7 @@ describe("jobRoutes", () => {
     const scraperService = {
       createJob: jest.fn().mockReturnValue({ job: { id: "job-1" }, queued: false }),
     };
-    const area = { id: "osm-r2", name: "Hải Châu", level: 6 };
+    const area = { id: "osm-r2", name: "Hải Châu", parentName: "Đà Nẵng", level: 6 };
     const areaCatalogService = {
       getAreasByIds: jest.fn().mockReturnValue([area]),
       polygonPathFor: jest.fn().mockReturnValue("/tmp/osm-r2.json"),
@@ -81,7 +88,8 @@ describe("jobRoutes", () => {
     expect(scraperService.createJob).toHaveBeenCalledWith(
       expect.objectContaining({
         city: "Hải Châu",
-        country: "Việt Nam",
+        country: "Vietnam",
+        state: "Đà Nẵng",
         POLYGON_PATH: "/tmp/osm-r2.json",
       })
     );
@@ -98,6 +106,36 @@ describe("jobRoutes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual(payload);
+  });
+
+  test("GET /jobs infers a State only when a legacy US area has one catalog match", async () => {
+    const scraperService = {
+      listJobs: jest.fn().mockReturnValue({
+        jobs: [
+          { id: "1", CITY: "Autauga", COUNTRY: "United States", STATE: "" },
+          { id: "2", CITY: "Washington", COUNTRY: "United States", STATE: "" },
+        ],
+        stats: {},
+      }),
+    };
+    const unitedStatesAreaCatalogService = {
+      listAreas: jest.fn(({ q }) =>
+        q === "Autauga"
+          ? [{ name: "Autauga", parentName: "Alabama" }]
+          : [
+              { name: "Washington", parentName: "Oregon" },
+              { name: "Washington", parentName: "Utah" },
+            ]
+      ),
+    };
+    const app = createTestAppWithUnitedStatesCatalog(scraperService, unitedStatesAreaCatalogService);
+
+    const res = await request(app).get("/jobs");
+
+    expect(res.body.jobs).toEqual([
+      expect.objectContaining({ id: "1", STATE: "Alabama" }),
+      expect.objectContaining({ id: "2", STATE: "" }),
+    ]);
   });
 
   test("PATCH /jobs/settings changes the concurrent-job limit", async () => {
@@ -146,6 +184,46 @@ describe("jobRoutes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ id: "1", status: "running", queued: false });
+  });
+
+  test("POST /jobs/:id/clone creates a new job with edited settings", async () => {
+    const scraperService = {
+      cloneJob: jest.fn().mockReturnValue({
+        queued: true,
+        queuePosition: 2,
+        job: { id: "2", status: "queued", plannedGridCount: 728 },
+      }),
+    };
+    const app = createTestApp(scraperService);
+    const res = await request(app)
+      .post("/jobs/1/clone")
+      .send({ STEP_METERS: 4000, keywords: "architect" });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({
+      id: "2",
+      status: "queued",
+      queued: true,
+      queuePosition: 2,
+      plannedGridCount: 728,
+    });
+    expect(scraperService.cloneJob).toHaveBeenCalledWith("1", {
+      STEP_METERS: 4000,
+      keywords: "architect",
+    });
+  });
+
+  test("POST /jobs/:id/estimate returns an edited grid estimate", async () => {
+    const scraperService = {
+      getJob: jest.fn().mockReturnValue({ env: { POLYGON_PATH: "/tmp/area.json" } }),
+      estimateGridCount: jest.fn().mockReturnValue(728),
+    };
+    const app = createTestApp(scraperService);
+    const res = await request(app).post("/jobs/1/estimate").send({ STEP_METERS: 4000 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ plannedGridCount: 728 });
+    expect(scraperService.estimateGridCount).toHaveBeenCalledWith("/tmp/area.json", 4000);
   });
 
   test("GET /jobs/:id/excel includes a job-report sheet and leads sheet", async () => {

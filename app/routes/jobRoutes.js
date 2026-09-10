@@ -7,6 +7,51 @@ const { parse: csvParse } = require("csv-parse/sync");
 function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaCatalogService }) {
   const router = express.Router();
 
+  function withInferredState(job) {
+    if (
+      job.STATE ||
+      job.COUNTRY !== "United States" ||
+      !unitedStatesAreaCatalogService ||
+      typeof unitedStatesAreaCatalogService.listAreas !== "function"
+    ) {
+      return job;
+    }
+    const city = String(job.CITY || "").trim().toLocaleLowerCase();
+    if (!city) return job;
+    const states = [
+      ...new Set(
+        unitedStatesAreaCatalogService
+          .listAreas({ q: job.CITY })
+          .filter((area) => String(area.name || "").trim().toLocaleLowerCase() === city)
+          .map((area) => area.parentName)
+          .filter(Boolean)
+      ),
+    ];
+    return states.length === 1 ? { ...job, STATE: states[0] } : job;
+  }
+
+  function estimateBatchGrid(req, res, catalogService) {
+    if (!catalogService) return res.status(501).json({ error: "Area catalog is unavailable" });
+    const ids = Array.isArray(req.body?.areaIds)
+      ? [...new Set(req.body.areaIds.filter((id) => typeof id === "string"))].slice(0, 300)
+      : [];
+    const stepMeters = Number(req.body?.STEP_METERS);
+    if (!ids.length || !Number.isFinite(stepMeters) || stepMeters < 100) {
+      return res.status(400).json({ error: "Choose at least one area and a valid grid spacing." });
+    }
+    const areas = catalogService.getAreasByIds(ids);
+    if (areas.length !== ids.length) return res.status(400).json({ error: "One or more areas are invalid." });
+    const estimates = areas.map((area) => ({
+      areaId: area.id,
+      city: area.name,
+      plannedGridCount: scraperService.estimateGridCount?.(
+        catalogService.polygonPathFor(area),
+        stepMeters
+      ) || 0,
+    }));
+    return res.json({ totalGridCount: estimates.reduce((sum, item) => sum + item.plannedGridCount, 0), estimates });
+  }
+
   function createBatchJobs(req, res, catalogService, country) {
     if (!catalogService) return res.status(501).json({ error: "Area catalog is unavailable" });
     const ids = Array.isArray(req.body?.areaIds)
@@ -14,17 +59,17 @@ function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaC
       : [];
     const keywords = req.body?.keywords;
     const stepMeters = req.body?.STEP_METERS;
-    if (!ids.length) return res.status(400).json({ error: "Hãy chọn ít nhất một khu vực" });
+    if (!ids.length) return res.status(400).json({ error: "Choose at least one area." });
 
     const areas = catalogService.getAreasByIds(ids);
     if (areas.length !== ids.length) {
-      return res.status(400).json({ error: "Một hoặc nhiều khu vực không hợp lệ" });
+      return res.status(400).json({ error: "One or more selected areas are invalid." });
     }
 
     const missingPolygon = areas.find((area) => !catalogService.polygonPathFor(area));
     if (missingPolygon) {
       return res.status(409).json({
-        error: `Chưa có polygon đầy đủ cho ${missingPolygon.name}. Hãy import lại catalog.`,
+        error: `A complete polygon is unavailable for ${missingPolygon.name}. Refresh the catalog and try again.`,
       });
     }
 
@@ -33,6 +78,7 @@ function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaC
       const result = scraperService.createJob({
         city: area.name,
         country,
+        state: area.parentName || "",
         keywords,
         STEP_METERS: stepMeters,
         POLYGON_PATH: catalogService.polygonPathFor(area),
@@ -51,11 +97,16 @@ function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaC
   }
 
   router.post("/jobs/batch", (req, res) => {
-    return createBatchJobs(req, res, areaCatalogService, "Việt Nam");
+    return createBatchJobs(req, res, areaCatalogService, "Vietnam");
   });
 
   router.post("/jobs/batch/us", (req, res) =>
     createBatchJobs(req, res, unitedStatesAreaCatalogService, "United States")
+  );
+
+  router.post("/jobs/batch/estimate", (req, res) => estimateBatchGrid(req, res, areaCatalogService));
+  router.post("/jobs/batch/us/estimate", (req, res) =>
+    estimateBatchGrid(req, res, unitedStatesAreaCatalogService)
   );
 
   router.post("/jobs", (req, res) => {
@@ -78,7 +129,8 @@ function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaC
   });
 
   router.get("/jobs", (req, res) => {
-    res.json(scraperService.listJobs());
+    const result = scraperService.listJobs();
+    res.json({ ...result, jobs: result.jobs.map(withInferredState) });
   });
 
   router.patch("/jobs/settings", (req, res) => {
@@ -207,6 +259,31 @@ function createJobRoutes({ scraperService, areaCatalogService, unitedStatesAreaC
     if (ret.notFound) return res.status(404).json({ error: "Not found" });
     if (ret.error) return res.status(409).json({ error: ret.error });
     return res.json({ id: ret.job.id, status: ret.job.status, queued: Boolean(ret.queued) });
+  });
+
+  router.post("/jobs/:id/clone", (req, res) => {
+    const result = scraperService.cloneJob(req.params.id, req.body || {});
+    if (result.notFound) return res.status(404).json({ error: "Not found" });
+    if (result.error) return res.status(400).json({ error: result.error });
+    return res.status(201).json({
+      id: result.job.id,
+      status: result.queued ? "queued" : result.job.status,
+      queued: Boolean(result.queued),
+      queuePosition: result.queuePosition || null,
+      plannedGridCount: result.job.plannedGridCount || 0,
+    });
+  });
+
+  router.post("/jobs/:id/estimate", (req, res) => {
+    const job = scraperService.getJob(req.params.id);
+    if (!job) return res.status(404).json({ error: "Not found" });
+    const stepMeters = Number(req.body?.STEP_METERS);
+    if (!Number.isFinite(stepMeters) || stepMeters < 100) {
+      return res.status(400).json({ error: "Enter a valid grid spacing." });
+    }
+    return res.json({
+      plannedGridCount: scraperService.estimateGridCount(job.env.POLYGON_PATH, stepMeters),
+    });
   });
 
   router.delete("/jobs/:id", (req, res) => {

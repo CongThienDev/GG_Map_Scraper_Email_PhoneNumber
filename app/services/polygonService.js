@@ -52,7 +52,7 @@ function createPolygonService({ rootDir }) {
       .split(/\r?\n/)
       .map((s) => s.trim())
       .filter(Boolean);
-    if (!list.length) return { error: "Thiếu danh sách city" };
+    if (!list.length) return { error: "Enter at least one city." };
 
     const job = spawnPolygonJob({ cities: list, country });
     return { job };

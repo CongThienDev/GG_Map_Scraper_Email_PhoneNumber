@@ -7,6 +7,8 @@ yarn-error.log*
 lerna-debug.log*
 results
 data/jobs.json
+data/system-metrics.json
+data/.system-metrics-state
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

@@ -67,6 +67,7 @@ describe("scraperService", () => {
     const ret = service.createJob({
       city: "Hamburg",
       country: "Germany",
+      state: "Hamburg",
       keywords: "architect,painter",
     });
 
@@ -74,6 +75,7 @@ describe("scraperService", () => {
     expect(ret.job.status).toBe("running");
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(spawn.mock.calls[0][2].env.COUNTRY).toBe("Germany");
+    expect(spawn.mock.calls[0][2].env.STATE).toBe("Hamburg");
 
     child.emit("exit", 0);
     expect(ret.job.status).toBe("finished");
@@ -85,7 +87,7 @@ describe("scraperService", () => {
 
     const store = createJobStore();
     const service = createScraperService({ config: makeConfig(tempDir), store });
-    const { job } = service.createJob({ city: "Hội An", country: "Việt Nam", keywords: "spa" });
+    const { job } = service.createJob({ city: "Hoi An", country: "Vietnam", keywords: "spa" });
     fs.writeFileSync(
       job.resultsPaths.CHECKPOINT_PATH,
       JSON.stringify({
@@ -108,6 +110,49 @@ describe("scraperService", () => {
     expect(header).toContain("active_duration_seconds");
     expect(header).toContain("duplicates_avoided");
     expect(row).toContain("finished");
+  });
+
+  test("persists a planned grid count before a queued job starts", () => {
+    const firstChild = makeFakeChild();
+    spawn.mockReturnValue(firstChild);
+    const polygonDirectory = path.join(tempDir, "Polygon_List");
+    fs.mkdirSync(polygonDirectory, { recursive: true });
+    const polygonPath = path.join(polygonDirectory, "polygon_Queued.json");
+    fs.writeFileSync(
+      polygonPath,
+      JSON.stringify({
+        polygon: [
+          [
+            [0, 0],
+            [0.018, 0],
+            [0.018, 0.018],
+            [0, 0.018],
+            [0, 0],
+          ],
+        ],
+      }),
+      "utf8"
+    );
+
+    const store = createJobStore();
+    const service = createScraperService({
+      config: makeConfig(tempDir, { maxConcurrent: 1 }),
+      store,
+    });
+    service.createJob({ city: "Active", keywords: "dentist" });
+    const queued = service.createJob({
+      city: "Queued",
+      keywords: "architect",
+      STEP_METERS: 1000,
+    });
+
+    expect(queued.queued).toBe(true);
+    expect(queued.job.env.POLYGON_PATH).toBe(polygonPath);
+    expect(queued.job.plannedGridCount).toBe(9);
+    expect(service.listJobs().jobs.find((job) => job.id === queued.job.id)).toMatchObject({
+      plannedGridCount: 9,
+      checkpointSummary: { totalCells: 9 },
+    });
   });
 
   test("queues jobs when max concurrency is reached and auto-starts on previous exit", () => {
@@ -281,7 +326,7 @@ describe("scraperService", () => {
     const restored = restoredStore.getJob(job.id);
 
     expect(restored.status).toBe("interrupted");
-    expect(restored.lastError).toMatch(/khởi động lại/);
+    expect(restored.lastError).toMatch(/server restarted/);
     expect(restored.resultsPaths.CHECKPOINT_PATH).toBe(job.resultsPaths.CHECKPOINT_PATH);
   });
 

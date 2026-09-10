@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -36,6 +36,15 @@
       }
       button {
         cursor: pointer;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible,
+      select:focus-visible,
+      summary:focus-visible {
+        outline: 3px solid #84adff;
+        outline-offset: 2px;
       }
       .wrap {
         max-width: 1180px;
@@ -111,8 +120,8 @@
         padding: 32px;
         background: #fff;
         border: 1px solid var(--line);
-        border-radius: 16px;
-        box-shadow: 0 5px 16px #10213f0a;
+        border-radius: 10px;
+        box-shadow: none;
       }
       h1 {
         margin: 0;
@@ -177,6 +186,15 @@
         color: #344054;
         text-decoration: none;
         font-weight: 700;
+        transition:
+          background-color 160ms ease,
+          border-color 160ms ease,
+          color 160ms ease,
+          box-shadow 160ms ease;
+      }
+      .btn:hover:not(:disabled) {
+        border-color: #98a2b3;
+        box-shadow: 0 1px 2px #10213f12;
       }
       .primary {
         background: var(--blue);
@@ -248,20 +266,25 @@
       }
       .queue-panel {
         display: flex;
-        justify-content: space-between;
-        align-items: end;
+        align-items: center;
         gap: 18px;
-        margin: 0 0 22px;
-        padding: 14px 16px;
-        background: #fff;
-        border: 1px solid var(--line);
-        border-radius: 12px;
+        padding: 0;
       }
       .queue-summary {
         color: var(--muted);
       }
       .queue-summary b {
         color: var(--ink);
+      }
+      .jobs-controls {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+        margin: 0 0 22px;
+        padding: 14px 0;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
       }
       .queue-form {
         display: flex;
@@ -274,15 +297,130 @@
       .queue-form input {
         padding: 8px 10px;
       }
-      .job {
+      .system-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 18px;
+        margin-bottom: 26px;
+      }
+      .system-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 40px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .system-status .dot {
+        width: 8px;
+        height: 8px;
+        color: #98a2b3;
+      }
+      .system-status.ok .dot {
+        color: var(--green);
+      }
+      .system-status.warn .dot {
+        color: var(--amber);
+      }
+      .system-status.danger .dot {
+        color: var(--red);
+      }
+      .system-layout {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .system-surface,
+      .system-insight {
         background: #fff;
         border: 1px solid var(--line);
         border-radius: 14px;
-        padding: 20px 22px;
+      }
+      .system-surface {
+        padding: 20px;
+      }
+      .system-surface-head {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .system-surface-head p,
+      .system-insight p {
+        margin: 3px 0 0;
+      }
+      .metric-list {
         display: grid;
-        grid-template-columns: 1.25fr 1fr auto;
-        gap: 20px;
+      }
+      .metric-row {
+        padding: 15px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .metric-row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+      .metric-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .metric-line b {
+        color: var(--ink);
+        text-align: right;
+      }
+      .meter {
+        height: 6px;
+        margin-top: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e9eef7;
+      }
+      .meter span {
+        display: block;
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--blue);
+        transition:
+          width 180ms ease,
+          background-color 180ms ease;
+      }
+      .metric-row.warn .meter span {
+        background: var(--amber);
+      }
+      .metric-row.danger .meter span {
+        background: var(--red);
+      }
+      .system-insight {
+        display: flex;
+        justify-content: space-between;
         align-items: center;
+        gap: 18px;
+        margin-top: 16px;
+        padding: 16px 20px;
+      }
+      .job {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px 18px;
+        display: grid;
+        grid-template-columns: minmax(280px, 1.1fr) minmax(220px, 0.8fr) auto;
+        gap: 24px;
+        align-items: center;
+        transition:
+          border-color 160ms ease,
+          box-shadow 160ms ease;
+      }
+      .job:hover {
+        border-color: #b2ccff;
+        box-shadow: 0 4px 14px #10213f0a;
       }
       .state {
         display: flex;
@@ -312,8 +450,8 @@
         color: var(--amber);
       }
       .title {
-        margin-top: 7px;
-        font-size: 18px;
+        margin-top: 5px;
+        font-size: 17px;
         font-weight: 750;
       }
       .track {
@@ -333,15 +471,82 @@
         flex-wrap: wrap;
         justify-content: end;
       }
-      .file-actions {
-        display: flex;
+      .job-actions > .btn {
+        white-space: nowrap;
+      }
+      .job-metrics {
+        display: grid;
         gap: 7px;
+      }
+      .job-config {
+        display: flex;
         flex-wrap: wrap;
-        justify-content: end;
+        gap: 6px 12px;
+        margin-top: 6px;
+      }
+      .job-config span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .job-config b {
+        color: #344054;
+      }
+      .job-progress-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .job-progress-head b {
+        color: var(--ink);
+        font-size: 14px;
+      }
+      .job-quick-stats {
+        color: #667085;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .job-quick-stats b {
+        color: #344054;
+        font-size: 13px;
+      }
+      .job-more {
+        position: relative;
+      }
+      .job-more summary {
+        list-style: none;
+      }
+      .job-more summary::-webkit-details-marker {
+        display: none;
+      }
+      .job-more[open] summary {
+        border-color: #175cd3;
+        box-shadow: 0 0 0 3px #d1e0ff;
+      }
+      .job-more .file-actions {
+        position: absolute;
+        z-index: 3;
+        right: 0;
+        top: calc(100% + 6px);
+        width: max-content;
+        max-width: min(280px, calc(100vw - 40px));
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 10px 24px #10213f1a;
+      }
+      .file-actions {
+        display: grid;
+        gap: 7px;
+        min-width: 184px;
       }
       .file-actions .btn {
-        padding: 7px 9px;
+        width: 100%;
+        padding: 8px 10px;
         font-size: 12px;
+        justify-content: flex-start;
+        text-align: left;
       }
       dialog {
         width: min(860px, calc(100% - 32px));
@@ -384,12 +589,18 @@
       .area-shell {
         max-width: none;
       }
+      .area-heading {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 18px;
+      }
       .area-toolbar {
         display: grid;
-        grid-template-columns: minmax(140px, 0.65fr) minmax(180px, 0.8fr) minmax(220px, 1.2fr) auto;
+        grid-template-columns: minmax(140px, 0.65fr) minmax(180px, 0.8fr) minmax(220px, 1.2fr);
         gap: 12px;
         align-items: end;
-        margin: 24px 0 16px;
+        margin: 18px 0 14px;
       }
       .area-toolbar .btn,
       .area-actions .btn {
@@ -400,6 +611,52 @@
         gap: 10px;
         flex-wrap: wrap;
         margin: 14px 0;
+      }
+      .catalog-tools {
+        position: relative;
+        flex: 0 0 auto;
+      }
+      .catalog-tools summary {
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .catalog-tools[open] {
+        z-index: 4;
+      }
+      .catalog-tools > div {
+        position: absolute;
+        z-index: 5;
+        right: 0;
+        top: calc(100% + 8px);
+        width: 216px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 10px 24px #10213f1a;
+      }
+      .catalog-tools p {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .area-help {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .area-help summary {
+        cursor: pointer;
+        font-weight: 700;
+      }
+      .area-help p {
+        max-width: 820px;
+        margin: 6px 0 0;
+      }
+      .area-help .area-status {
+        margin: 10px 0 0;
       }
       .pill {
         display: inline-flex;
@@ -421,7 +678,7 @@
         height: min(64vh, 640px);
         min-height: 440px;
         border: 1px solid var(--line);
-        border-radius: 12px;
+        border-radius: 8px;
         overflow: hidden;
       }
       .area-side {
@@ -468,6 +725,11 @@
         color: var(--muted);
         font-size: 12px;
       }
+      .area-row small {
+        display: block;
+        margin-top: 2px;
+        font-size: inherit;
+      }
       .area-check {
         flex: 0 0 auto;
         width: 18px;
@@ -488,8 +750,19 @@
         margin: 0 0 16px;
         padding: 12px 14px;
         border: 1px solid #c7d7fe;
-        border-radius: 12px;
+        border-radius: 8px;
         background: #f5f8ff;
+      }
+      .grid-estimate {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .grid-estimate b {
+        color: #1849a9;
       }
       .area-selection-bar b {
         color: #1849a9;
@@ -500,17 +773,59 @@
       }
       .area-actions {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 12px;
+        grid-template-columns: minmax(0, 1fr) 220px;
+        column-gap: 18px;
+        row-gap: 12px;
         align-items: end;
-        margin: 0 0 16px;
-        padding: 16px;
+        margin: 0 0 18px;
+        padding: 18px;
         border: 1px solid var(--line);
-        border-radius: 12px;
+        border-radius: 8px;
         background: #fff;
+      }
+      .scan-form-head {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--line);
+      }
+      .scan-form-head h2 {
+        font-size: 16px;
+      }
+      .scan-form-head span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .terms-field textarea {
+        min-height: 94px;
+        border-radius: 7px;
+      }
+      .scan-controls {
+        display: grid;
+        gap: 8px;
       }
       .area-actions textarea {
         min-height: 76px;
+      }
+      .area-actions .estimate-copy {
+        display: block;
+        min-height: 20px;
+        margin: 8px 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .clone-grid {
+        display: grid;
+        grid-template-columns: 1fr 180px;
+        gap: 14px;
+      }
+      .clone-note {
+        margin: 14px 0 0;
+        color: var(--muted);
+        font-size: 13px;
       }
       .empty-area {
         padding: 18px;
@@ -540,7 +855,8 @@
           white-space: nowrap;
         }
         .grid,
-        .job {
+        .job,
+        .system-layout {
           grid-template-columns: 1fr;
         }
         .full {
@@ -548,7 +864,9 @@
         }
         .actions,
         .toolbar,
-        .queue-panel {
+        .queue-panel,
+        .system-toolbar,
+        .system-insight {
           align-items: stretch;
           flex-direction: column;
         }
@@ -567,10 +885,16 @@
         }
         .area-toolbar,
         .area-workspace,
-        .area-actions {
+        .area-actions,
+        .clone-grid {
           grid-template-columns: 1fr;
         }
         .area-selection-bar {
+          align-items: stretch;
+          flex-direction: column;
+        }
+        .jobs-controls,
+        .area-heading {
           align-items: stretch;
           flex-direction: column;
         }
@@ -590,34 +914,55 @@
         <div class="top">
           <div class="brand">
             <div class="mark">M</div>
-            <div><b>Maps Prospects</b><span>Thu thập doanh nghiệp theo khu vực và ngành</span></div>
+            <div><b>Maps Prospects</b><span>Location-based business discovery</span></div>
           </div>
-          <form method="post" action="/logout"><button class="btn">Đăng xuất</button></form>
+          <form method="post" action="/logout"><button class="btn">Sign out</button></form>
         </div>
         <nav class="tabs" role="tablist">
-          <button class="tab" id="create-tab" role="tab" aria-selected="true">Tạo đơn quét</button
-          ><button class="tab" id="cities-tab" role="tab" aria-selected="false">
-            Chuẩn bị thành phố</button
-          ><button class="tab" id="areas-tab" role="tab" aria-selected="false">
-            Bản đồ khu vực</button
-          ><button class="tab" id="jobs-tab" role="tab" aria-selected="false">Đợt quét</button>
+          <button
+            class="tab"
+            id="areas-tab"
+            role="tab"
+            aria-controls="areas"
+            aria-selected="true"
+          >
+            Area map</button
+          ><button
+            class="tab"
+            id="cities-tab"
+            role="tab"
+            aria-controls="cities"
+            aria-selected="false"
+          >
+            Boundary tools</button
+          ><button class="tab" id="jobs-tab" role="tab" aria-controls="jobs" aria-selected="false">
+            Jobs</button
+          ><button
+            class="tab"
+            id="system-tab"
+            role="tab"
+            aria-controls="system"
+            aria-selected="false"
+          >
+            System
+          </button>
         </nav>
       </div>
     </header>
     <main>
-      <section class="panel" id="create">
+      <section class="panel" id="create" role="tabpanel" hidden>
         <div class="card">
-          <h1>Tạo đơn quét mới</h1>
+          <h1>Create a scan job</h1>
           <p class="lead">
-            Chọn khu vực và ngành nghề. Hệ thống sẽ tự chạy theo từng grid trong thành phố.
+            Add a city and search terms. The worker scans each grid point inside the boundary.
           </p>
           <form id="jobForm">
             <div class="grid">
-              <label>Quốc gia<input name="country" value="Việt Nam" required /></label
-              ><label>Thành phố<input name="city" placeholder="Ví dụ: Hội An" required /></label
+              <label>Country<input name="country" value="United States" required /></label
+              ><label>City<input name="city" placeholder="e.g. Los Angeles" required /></label
               ><label class="full"
-                >Khoảng cách giữa các grid (m)<span class="hint"
-                  >Nhỏ hơn giúp phủ kỹ hơn nhưng chạy lâu hơn.</span
+                >Grid spacing (m)<span class="hint"
+                  >Smaller spacing gives fuller coverage but creates more grid points.</span
                 ><input
                   name="STEP_METERS"
                   type="number"
@@ -626,127 +971,143 @@
                   value="1200"
                   required /></label
               ><label class="full"
-                >Ngành nghề cần tìm<span class="hint"
-                  >Mỗi dòng hoặc dấu phẩy là một nhóm tìm kiếm.</span
+                >Search terms<span class="hint"
+                  >Use one term per line or separate terms with commas.</span
                 ><textarea
                   name="keywords"
-                  placeholder="nhà hàng hải sản&#10;homestay&#10;spa"
+                  placeholder="seafood restaurant&#10;boutique hotel&#10;spa"
                   required
                 ></textarea>
               </label>
             </div>
             <div class="actions">
-              <span class="hint">Bạn có thể xem tiến độ và dừng đợt quét bất cứ lúc nào.</span
-              ><button class="btn primary">Bắt đầu quét</button>
+              <span class="hint">You can pause a running job at any time.</span
+              ><button class="btn primary">Start scan</button>
             </div>
           </form>
           <p class="msg" id="jobMsg" aria-live="polite"></p>
         </div>
       </section>
-      <section class="panel" id="cities" hidden>
+      <section class="panel" id="cities" role="tabpanel" aria-labelledby="cities-tab" hidden>
         <div class="card">
-          <h1>Chuẩn bị thành phố</h1>
+          <h1>Prepare city boundaries</h1>
           <p class="lead">
-            Nhập country và các city cần dùng, sau đó tải ranh giới để sẵn sàng tạo đơn quét.
+            Add the country and cities you plan to scan, then download their boundaries.
           </p>
           <form id="polyForm">
             <div class="grid">
               <div class="full inline">
-                <label>Quốc gia<input name="country" value="Việt Nam" required /></label
+                <label>Country<input name="country" value="United States" required /></label
                 ><button class="btn" type="button" id="copyCountry">
-                  Dùng quốc gia ở đơn quét
+                  Use country from new job
                 </button>
               </div>
               <label class="full"
-                >Thành phố cần chuẩn bị<span class="hint"
-                  >Mỗi dòng là một thành phố. Bạn có thể thêm, sửa hoặc xoá.</span
+                >Cities to prepare<span class="hint"
+                  >Use one city per line. You can add, edit, or remove cities.</span
                 ><textarea
                   name="citiesText"
-                  placeholder="Hội An&#10;Đà Nẵng&#10;Huế"
+                  placeholder="Los Angeles&#10;New York&#10;Chicago"
                   required
                 ></textarea>
               </label>
             </div>
             <div class="actions">
-              <span class="hint">Việc này chỉ tải ranh giới; chưa bắt đầu quét doanh nghiệp.</span
-              ><button class="btn primary" id="polyBtn">Tải ranh giới các thành phố</button>
+              <span class="hint">This downloads boundaries only; no businesses are scanned yet.</span
+              ><button class="btn primary" id="polyBtn">Download boundaries</button>
             </div>
           </form>
           <p class="msg" id="polyMsg" aria-live="polite"></p>
           <div class="city-status">
-            <h2>Trạng thái tải ranh giới</h2>
+            <h2>Boundary download status</h2>
             <pre class="log" id="polyLog" hidden></pre>
           </div>
         </div>
       </section>
-      <section class="panel" id="areas" hidden>
+      <section class="panel" id="areas" role="tabpanel" aria-labelledby="areas-tab">
         <div class="card area-shell">
-          <h1 id="areasTitle">Chọn khu vực Việt Nam</h1>
-          <p class="lead" id="areasLead">
-            Chọn các khu vực quét trên bản đồ. Mỗi khu vực tạo một đơn riêng, dùng polygon đã lưu để
-            phủ đủ grid.
-          </p>
+          <div class="area-heading">
+            <div>
+              <h1 id="areasTitle">United States area map</h1>
+              <details class="area-help">
+                <summary>How area jobs work</summary>
+                <p id="areasLead">Choose a State to keep the map fast. Each selected county creates a separate job using its saved polygon.</p>
+                <div class="area-status" id="areaStatus" hidden></div>
+              </details>
+            </div>
+            <details class="catalog-tools">
+              <summary>Catalog tools</summary>
+              <div>
+                <p>Refresh only when boundary data changes. Existing jobs are unaffected.</p>
+                <button class="btn" type="button" id="importVn">Refresh catalog</button>
+              </div>
+            </details>
+          </div>
           <p class="msg" id="areaMsg" role="status" aria-live="polite"></p>
-          <div class="area-status" id="areaStatus" hidden></div>
           <div class="area-toolbar">
             <label
-              >Quốc gia<select id="areaCountry">
-                <option value="VN">Việt Nam</option>
-                <option value="US">United States</option>
+              >Coverage<select id="areaCountry">
+                <option value="US" selected>United States</option>
+                <option value="VN">Global catalog</option>
               </select></label
             >
             <label
-              ><span id="areaParentLabel">Tỉnh/thành cấp tỉnh</span><select id="provinceFilter">
-                <option value="">Toàn Việt Nam</option>
+              ><span id="areaParentLabel">State</span
+              ><select id="provinceFilter">
+                <option value="">Choose a State</option>
               </select></label
             >
             <label
-              >Tìm khu vực<input
+              >Search areas<input
                 id="areaSearch"
                 type="search"
-                placeholder="Ví dụ: Hội An, Hải Châu"
+                placeholder="e.g. Los Angeles, Cook County"
                 autocomplete="off"
             /></label>
-            <button class="btn" type="button" id="importVn">Nạp/cập nhật catalog</button>
           </div>
           <div class="area-selection-bar" id="areaSelectionBar" aria-live="polite" hidden>
             <span
-              ><b id="areaSelectionCount">Bước 1: Chưa chọn khu vực</b><br /><span class="hint"
-                >Bước 2: nhập ngành nghề. Bước 3: tạo đơn.</span
+              ><b id="areaSelectionCount">1 area selected</b><br /><span class="hint"
+                >Your selected areas will be created as separate jobs.</span
               ></span
             >
-            <button class="btn" type="button" id="clearAreaSelection" disabled>Xóa lựa chọn</button>
+            <button class="btn" type="button" id="clearAreaSelection" disabled>Clear selection</button>
           </div>
           <form id="batchForm" class="area-actions" hidden>
-            <label
-              >Ngành nghề cần tìm<textarea
+            <div class="scan-form-head">
+              <h2>Scan setup</h2>
+              <span>Set your query and grid, then create one job per selected area.</span>
+            </div>
+            <label class="terms-field"
+              >Search terms<textarea
                 name="keywords"
-                placeholder="Ví dụ: nhà hàng hải sản&#10;homestay"
+                placeholder="e.g. architect&#10;landscape architect&#10;interior designer"
                 required
               ></textarea>
             </label>
-            <div>
+            <div class="scan-controls">
               <label
-                >Khoảng cách grid (m)<input
+                >Grid spacing (m)<input
                   name="STEP_METERS"
                   type="number"
                   min="100"
                   step="100"
                   value="1200"
                   required /></label
-              ><button class="btn primary" id="batchBtn">Chọn khu vực trước</button>
+              ><span class="estimate-copy" id="gridEstimate" aria-live="polite">Select counties to estimate the grid.</span
+              ><button class="btn primary" id="batchBtn">Select areas first</button>
             </div>
           </form>
           <div class="area-workspace" id="areaWorkspace" hidden>
             <div
               class="area-map"
               id="areaMap"
-              aria-label="Bản đồ khu vực Việt Nam; chọn khu vực bằng danh sách hoặc bằng cách nhấp vào polygon"
+              aria-label="Area map; select areas from the list or by clicking a polygon"
             ></div>
             <div class="area-side">
               <div class="area-side-head">
-                <h2>Khu vực hiển thị</h2>
-                <p class="hint" id="areaListMeta">Đang tải…</p>
+                <h2>Available areas</h2>
+                <p class="hint" id="areaListMeta">Loading…</p>
               </div>
               <div class="area-list" id="areaList"></div>
             </div>
@@ -754,52 +1115,162 @@
           <pre class="log" id="importLog" hidden></pre>
         </div>
       </section>
-      <section class="panel" id="jobs" hidden>
+      <section class="panel" id="jobs" role="tabpanel" aria-labelledby="jobs-tab" hidden>
         <div class="toolbar">
           <div>
-            <h1>Đợt quét</h1>
-            <p class="lead">Theo dõi tiến độ, tải kết quả và kiểm tra từng đợt quét.</p>
+            <h1>Jobs</h1>
+            <p class="lead">Prioritize active work, review planned coverage, and manage the queue.</p>
           </div>
-          <button class="btn primary" id="newJob">Tạo đơn quét</button>
+          <button class="btn primary" id="newJob">Open area map</button>
         </div>
-        <div class="queue-panel">
-          <div class="queue-summary" id="jobQueueSummary" aria-live="polite">Đang tải trạng thái job…</div>
-          <form class="queue-form" id="jobLimitForm">
-            <label>Job chạy đồng thời tối đa<input id="maxConcurrent" type="number" min="1" step="1" required /></label>
-            <button class="btn" type="submit">Lưu giới hạn</button>
-          </form>
+        <div class="jobs-controls">
+          <div class="queue-panel">
+            <div class="queue-summary" id="jobQueueSummary" aria-live="polite">
+              Loading job status…
+            </div>
+            <form class="queue-form" id="jobLimitForm">
+              <label
+                >Concurrency<input
+                  id="maxConcurrent"
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+              /></label>
+              <button class="btn" type="submit">Save</button>
+            </form>
+          </div>
+          <label class="search"
+            >Find jobs<input
+              id="search"
+              placeholder="City or search term"
+          /></label>
         </div>
         <p class="msg" id="jobQueueMsg" aria-live="polite"></p>
-        <label class="search"
-          >Tìm theo thành phố hoặc ngành<input
-            id="search"
-            placeholder="Ví dụ: Hội An hoặc nhà hàng"
-        /></label>
         <div class="jobs" id="jobList"></div>
+      </section>
+      <section class="panel" id="system" role="tabpanel" aria-labelledby="system-tab" hidden>
+        <div class="system-toolbar">
+          <div>
+            <h1>System status</h1>
+            <p class="lead">Monitor server capacity and the resources used by the scanner.</p>
+          </div>
+          <div>
+            <div class="system-status" id="systemStatus" role="status" aria-live="polite">
+              <i class="dot" aria-hidden="true"></i><span>No metrics loaded</span>
+            </div>
+            <button class="btn" id="refreshSystem" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="system-layout">
+          <section class="system-surface" aria-labelledby="hostMetricsTitle">
+            <div class="system-surface-head">
+              <div>
+                <h2 id="hostMetricsTitle">VPS host</h2>
+                <p class="hint" id="hostMetricsMeta">A host collector is required to show these metrics.</p>
+              </div>
+            </div>
+            <div class="metric-list">
+              <div class="metric-row" id="hostCpuRow">
+                <div class="metric-line"><span>CPU</span><b id="hostCpu">—</b></div>
+                <div class="meter" aria-hidden="true"><span id="hostCpuBar"></span></div>
+              </div>
+              <div class="metric-row" id="hostMemoryRow">
+                <div class="metric-line"><span>RAM</span><b id="hostMemory">—</b></div>
+                <div class="meter" aria-hidden="true"><span id="hostMemoryBar"></span></div>
+              </div>
+              <div class="metric-row" id="hostDiskRow">
+                <div class="metric-line"><span>Data disk</span><b id="hostDisk">—</b></div>
+                <div class="meter" aria-hidden="true"><span id="hostDiskBar"></span></div>
+              </div>
+              <div class="metric-row">
+                <div class="metric-line">
+                  <span>Load / pressure</span><b id="hostPressure">—</b>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="system-surface" aria-labelledby="appMetricsTitle">
+            <div class="system-surface-head">
+              <div>
+                <h2 id="appMetricsTitle">Scanner application</h2>
+                <p class="hint" id="appMetricsMeta">Measures Node, workers, and Chromium in the container.</p>
+              </div>
+            </div>
+            <div class="metric-list">
+              <div class="metric-row" id="appCpuRow">
+                <div class="metric-line"><span>CPU container</span><b id="appCpu">—</b></div>
+                <div class="meter" aria-hidden="true"><span id="appCpuBar"></span></div>
+              </div>
+              <div class="metric-row" id="appMemoryRow">
+                <div class="metric-line"><span>RAM container</span><b id="appMemory">—</b></div>
+                <div class="meter" aria-hidden="true"><span id="appMemoryBar"></span></div>
+              </div>
+              <div class="metric-row">
+                <div class="metric-line"><span>Running jobs</span><b id="appJobs">—</b></div>
+              </div>
+              <div class="metric-row">
+                <div class="metric-line"><span>Pressure / OOM</span><b id="appPressure">—</b></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <section class="system-insight" aria-labelledby="systemAdviceTitle">
+          <div>
+            <h2 id="systemAdviceTitle">Job capacity</h2>
+            <p class="lead" id="systemAdvice">
+              Gather a baseline for this machine before choosing a safe job limit.
+            </p>
+          </div>
+        </section>
       </section>
     </main>
     <dialog id="dialog">
       <div class="dhead">
         <div>
-          <h2 id="dtitle">Chi tiết đợt quét</h2>
+          <h2 id="dtitle">Job details</h2>
           <p class="lead" id="dsub"></p>
         </div>
-        <button class="btn" id="close">Đóng</button>
+        <button class="btn" id="close">Close</button>
       </div>
       <div class="dbody">
         <div class="summary" id="sum"></div>
         <div class="detail-maps">
           <div>
-            <p class="hint">Bản đồ khu vực và grid</p>
+            <p class="hint">Area and grid map</p>
             <div class="detail-map" id="progressMap"></div>
           </div>
           <div>
-            <p class="hint">Sơ đồ grid</p>
+            <p class="hint">Grid diagram</p>
             <canvas id="gridCanvas" width="720" height="580"></canvas>
           </div>
         </div>
-        <pre class="log" id="logs">Đang tải log...</pre>
+        <pre class="log" id="logs">Loading log…</pre>
       </div>
+    </dialog>
+    <dialog id="cloneDialog" aria-labelledby="cloneTitle">
+      <form method="dialog">
+        <div class="dhead">
+          <div>
+            <h2 id="cloneTitle">Duplicate and adjust job</h2>
+            <p class="hint" id="cloneSub">A new job will keep this job’s saved area boundary.</p>
+          </div>
+          <button class="btn" value="cancel" aria-label="Close duplicate job dialog">Close</button>
+        </div>
+      </form>
+      <form class="dbody" id="cloneForm">
+        <input id="cloneJobId" type="hidden" />
+        <div class="clone-grid">
+          <label>Search terms<textarea id="cloneKeywords" required></textarea></label>
+          <label>Grid spacing (m)<input id="cloneStep" type="number" min="100" step="100" required /></label>
+        </div>
+        <p class="clone-note" id="cloneEstimate" aria-live="polite"></p>
+        <div class="actions">
+          <span class="hint">The original job is not changed. Pause it separately if it should stop.</span>
+          <button class="btn primary" type="submit">Create duplicate</button>
+        </div>
+        <p class="msg" id="cloneMsg" aria-live="polite"></p>
+      </form>
     </dialog>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
@@ -807,44 +1278,66 @@
       let data = [],
         jobStats = {},
         stream,
-        timer;
+        timer,
+        systemTimer,
+        systemLoading = false;
       let leafletMap, markers, polygonLayer;
       let areaMap,
         areaLayer,
         areaRenderer,
         areaCatalog = [],
-        areaSearchTimer;
+        areaSearchTimer,
+        areaEstimateTimer,
+        cloneEstimateTimer;
       const selectedAreaIds = new Set();
       const esc = (s) =>
         String(s || "").replace(
           /[&<>"']/g,
           (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
         );
+      const displayCountry = (country) =>
+        String(country || "") === "Việt Nam" ? "Global catalog" : String(country || "Country not recorded");
+      const displayJobError = (error) =>
+        String(error || "")
+          .replace(
+            "Server đã khởi động lại khi job đang chạy. Có thể tiếp tục từ checkpoint.",
+            "The server restarted while this job was active. Resume it from its checkpoint."
+          )
+          .replace(
+            "Job cũ được khôi phục từ checkpoint. Có thể tiếp tục từ vị trí đã lưu.",
+            "A legacy job was restored from its checkpoint and can resume from the saved position."
+          );
       const labels = {
-        running: "Đang quét",
-        queued: "Đang chờ",
-        finished: "Hoàn tất",
-        failed: "Có lỗi",
-        paused: "Đã tạm dừng",
-        interrupted: "Bị gián đoạn",
-        stopping: "Đang dừng",
+        running: "Running",
+        queued: "Queued",
+        finished: "Finished",
+        failed: "Failed",
+        paused: "Paused",
+        interrupted: "Interrupted",
+        stopping: "Stopping",
       };
       function tab(id) {
-        ["create", "cities", "areas", "jobs"].forEach((x) => {
+        ["cities", "areas", "jobs", "system"].forEach((x) => {
           $("#" + x).hidden = x !== id;
           $("#" + x + "-tab").setAttribute("aria-selected", x === id);
         });
         if (id === "jobs") load();
-        if (id === "areas") loadVietnamAreas();
+        if (id === "areas") loadAreaCatalog();
+        if (id === "system") startSystemMonitoring();
+        else stopSystemMonitoring();
       }
       document
         .querySelectorAll(".tab")
         .forEach((b) => (b.onclick = () => tab(b.id.replace("-tab", ""))));
-      $("#newJob").onclick = () => tab("create");
+      $("#newJob").onclick = () => tab("areas");
       $("#copyCountry").onclick = () =>
         ($("#polyForm [name=country]").value = $("#jobForm [name=country]").value);
-      const fmt = new Intl.NumberFormat("vi-VN");
-      const dateTimeFmt = new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "medium" });
+      const fmt = new Intl.NumberFormat("en-US");
+      const dateTimeFmt = new Intl.DateTimeFormat("en-US", {
+        dateStyle: "short",
+        timeStyle: "medium",
+      });
+      const compactNumberFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
       function formatDateTime(value) {
         const date = value ? new Date(value) : null;
         return date && !Number.isNaN(date.valueOf()) ? dateTimeFmt.format(date) : "—";
@@ -855,14 +1348,204 @@
         const hours = Math.floor(total / 3600),
           minutes = Math.floor((total % 3600) / 60),
           remaining = Math.floor(total % 60);
-        return hours ? `${hours}g ${minutes}p ${remaining}s` : minutes ? `${minutes}p ${remaining}s` : `${remaining}s`;
+        return hours
+          ? `${hours}h ${minutes}m ${remaining}s`
+          : minutes
+            ? `${minutes}m ${remaining}s`
+            : `${remaining}s`;
       }
       async function json(url, options) {
         const response = await fetch(url, options);
         const body = await response.json().catch(() => ({}));
-        if (!response.ok) throw Error(body.error || "Không thể tải dữ liệu");
+        if (!response.ok) throw Error(body.error || "Unable to load data.");
         return body;
       }
+      function formatBytes(value) {
+        const bytes = Number(value);
+        if (!Number.isFinite(bytes) || bytes < 0) return "—";
+        const units = ["B", "KB", "MB", "GB", "TB"];
+        let unit = 0,
+          amount = bytes;
+        while (amount >= 1024 && unit < units.length - 1) {
+          amount /= 1024;
+          unit += 1;
+        }
+        return `${compactNumberFmt.format(amount)} ${units[unit]}`;
+      }
+      function formatPercent(value) {
+        if (value === null || value === undefined || value === "") return "Sampling…";
+        const percent = Number(value);
+        return Number.isFinite(percent) ? `${compactNumberFmt.format(percent)}%` : "Sampling…";
+      }
+      function severityForPercent(value, { warning = 75, danger = 90, inverse = false } = {}) {
+        if (value === null || value === undefined || value === "") return "";
+        const percent = Number(value);
+        if (!Number.isFinite(percent)) return "";
+        const score = inverse ? 100 - percent : percent;
+        if (score >= danger) return "danger";
+        if (score >= warning) return "warn";
+        return "";
+      }
+      function setMetric(id, text, percent, severity = "") {
+        $("#" + id).textContent = text;
+        const row = $("#" + id + "Row");
+        const bar = $("#" + id + "Bar");
+        if (!row || !bar) return;
+        row.classList.remove("warn", "danger");
+        if (severity) row.classList.add(severity);
+        const value = Number(percent);
+        bar.style.width = Number.isFinite(value) ? `${Math.max(0, Math.min(100, value))}%` : "0%";
+      }
+      function setSystemStatus(text, severity = "") {
+        const el = $("#systemStatus");
+        el.classList.remove("ok", "warn", "danger");
+        if (severity) el.classList.add(severity);
+        el.querySelector("span").textContent = text;
+      }
+      function renderSystemMetrics(payload) {
+        const host = payload.host || {};
+        const app = payload.application || {};
+        const hostAvailable = host.status === "available";
+        const appAvailable = app.status === "available";
+        const hostMemory = host.memory || {};
+        const hostDisk = host.disk || {};
+        const hostMemoryPercent =
+          hostMemory.totalBytes > 0
+            ? (Number(hostMemory.usedBytes) / Number(hostMemory.totalBytes)) * 100
+            : null;
+        const hostDiskPercent =
+          hostDisk.totalBytes > 0
+            ? ((Number(hostDisk.totalBytes) - Number(hostDisk.availableBytes)) /
+                Number(hostDisk.totalBytes)) *
+              100
+            : null;
+        const hostCpuSeverity = severityForPercent(host.cpuPercent);
+        const hostMemorySeverity = severityForPercent(hostMemoryPercent);
+        const hostDiskSeverity = severityForPercent(hostDiskPercent, { warning: 80, danger: 90 });
+        const appMemory = app.memory || {};
+        const appMemoryPercent =
+          appMemory.maxBytes > 0
+            ? (Number(appMemory.currentBytes) / Number(appMemory.maxBytes)) * 100
+            : null;
+        const appCpuSeverity = severityForPercent(app.cpuPercent);
+        const appMemorySeverity = severityForPercent(appMemoryPercent);
+
+        $("#hostMetricsTitle").textContent = host.scope === "local" ? "Local machine" : "VPS host";
+        $("#hostMetricsMeta").textContent = hostAvailable
+          ? host.scope === "local"
+            ? "Local machine — used to verify the UI and logic."
+            : `VPS snapshot at ${formatDateTime(host.collectedAt || payload.collectedAt)}.`
+          : host.reason || "Host collector is not ready.";
+        setMetric(
+          "hostCpu",
+          hostAvailable ? formatPercent(host.cpuPercent) : "—",
+          host.cpuPercent,
+          hostCpuSeverity
+        );
+        setMetric(
+          "hostMemory",
+          hostAvailable && hostMemory.totalBytes
+            ? `${formatBytes(hostMemory.usedBytes)} / ${formatBytes(hostMemory.totalBytes)}`
+            : "—",
+          hostMemoryPercent,
+          hostMemorySeverity
+        );
+        setMetric(
+          "hostDisk",
+          hostAvailable && hostDisk.totalBytes
+            ? `${formatBytes(hostDisk.availableBytes)} free / ${formatBytes(hostDisk.totalBytes)}`
+            : "—",
+          hostDiskPercent,
+          hostDiskSeverity
+        );
+        const hostPressure = host.pressure || {};
+        $("#hostPressure").textContent = hostAvailable
+          ? `Load ${compactNumberFmt.format(Number(host.load1) || 0)} · CPU ${formatPercent(hostPressure.cpuSomeAvg10)} · RAM ${formatPercent(hostPressure.memorySomeAvg10)}`
+          : "—";
+
+        $("#appMetricsMeta").textContent = appAvailable
+          ? `CPU limit: ${compactNumberFmt.format(app.cpuCores)} core${app.memory?.maxBytes ? ` · RAM limit: ${formatBytes(app.memory.maxBytes)}` : " · no RAM limit"}`
+          : app.reason || "No application cgroup is available on this machine.";
+        setMetric(
+          "appCpu",
+          appAvailable ? formatPercent(app.cpuPercent) : "—",
+          app.cpuPercent,
+          appCpuSeverity
+        );
+        setMetric(
+          "appMemory",
+          appAvailable && appMemory.currentBytes !== null
+            ? appMemory.maxBytes
+              ? `${formatBytes(appMemory.currentBytes)} / ${formatBytes(appMemory.maxBytes)}`
+              : `${formatBytes(appMemory.currentBytes)} · unlimited`
+            : "—",
+          appMemoryPercent,
+          appMemorySeverity
+        );
+        const jobs = payload.jobs || {};
+        $("#appJobs").textContent =
+          `${fmt.format(Number(jobs.running) || 0)} / ${fmt.format(Number(jobs.maxConcurrent) || 0)} running · ${fmt.format(Number(jobs.queued) || 0)} queued`;
+        const appPressure = app.pressure || {};
+        $("#appPressure").textContent = appAvailable
+          ? `CPU ${formatPercent(appPressure.cpuSomeAvg10)} · RAM ${formatPercent(appPressure.memorySomeAvg10)} · OOM ${fmt.format(Number(app.events?.oomKills) || 0)}`
+          : "—";
+
+        const severity = [
+          hostCpuSeverity,
+          hostMemorySeverity,
+          hostDiskSeverity,
+          appCpuSeverity,
+          appMemorySeverity,
+        ].includes("danger")
+          ? "danger"
+          : [
+                hostCpuSeverity,
+                hostMemorySeverity,
+                hostDiskSeverity,
+                appCpuSeverity,
+                appMemorySeverity,
+              ].includes("warn")
+            ? "warn"
+            : hostAvailable || appAvailable
+              ? "ok"
+              : "";
+        setSystemStatus(
+          hostAvailable || appAvailable
+            ? `Updated ${formatDateTime(payload.collectedAt)}${severity === "danger" ? " · Reduce load" : severity === "warn" ? " · Monitor" : " · Stable"}`
+            : "No recent metrics",
+          severity
+        );
+        $("#systemAdvice").textContent =
+          severity === "danger"
+            ? "Do not increase the job limit. Keep the next jobs queued and check resources before continuing."
+            : "A recommended job limit will appear after this machine has enough load-baseline data.";
+      }
+      async function loadSystemMetrics() {
+        if (systemLoading) return;
+        systemLoading = true;
+        try {
+          renderSystemMetrics(await json("/system/metrics"));
+        } catch (error) {
+          setSystemStatus(`Unable to load metrics: ${error.message}`, "danger");
+        } finally {
+          systemLoading = false;
+        }
+      }
+      function startSystemMonitoring() {
+        loadSystemMetrics();
+        clearInterval(systemTimer);
+        systemTimer = setInterval(() => {
+          if (!document.hidden) loadSystemMetrics();
+        }, 10_000);
+      }
+      function stopSystemMonitoring() {
+        clearInterval(systemTimer);
+        systemTimer = null;
+      }
+      $("#refreshSystem").onclick = loadSystemMetrics;
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && !$("#system").hidden) loadSystemMetrics();
+      });
       function setAreaMessage(message, type = "") {
         const el = $("#areaMsg");
         el.className = "msg " + type;
@@ -877,48 +1560,49 @@
               parentsEndpoint: "/areas/us/states",
               parentsKey: "states",
               parentLabel: "State",
-              countryLabel: "Hoa Kỳ",
+              countryLabel: "United States",
               areaLabel: "county",
-              allLabel: "Toàn Hoa Kỳ",
+              allLabel: "Choose a State",
               defaultView: [39.8, -98.5, 4],
               batchEndpoint: "/jobs/batch/us",
+              estimateEndpoint: "/jobs/batch/us/estimate",
             }
           : {
               base: "/areas/vn",
               parentKey: "provinceId",
               parentsEndpoint: "/areas/vn/provinces",
               parentsKey: "provinces",
-              parentLabel: "Tỉnh/thành cấp tỉnh",
-              countryLabel: "Việt Nam",
-              areaLabel: "khu vực",
-              allLabel: "Toàn Việt Nam",
+              parentLabel: "Region",
+              countryLabel: "Global catalog",
+              areaLabel: "area",
+              allLabel: "Choose a region",
               defaultView: [16.1, 106.2, 6],
               batchEndpoint: "/jobs/batch",
+              estimateEndpoint: "/jobs/batch/estimate",
             };
       }
-      async function loadVietnamAreas() {
+      async function loadAreaCatalog() {
         const api = areaApi();
-        $("#areasTitle").textContent = `Chọn khu vực ${api.countryLabel}`;
-        $("#areasLead").textContent = `Chọn các ${api.areaLabel} quét trên bản đồ. Mỗi khu vực tạo một đơn riêng, dùng polygon đã lưu để phủ đủ grid.`;
+        $("#areasTitle").textContent = `${api.countryLabel} area map`;
+        $("#areasLead").textContent =
+          `Choose a ${api.parentLabel} to keep the map fast. Each selected ${api.areaLabel} creates a separate job using its saved polygon.`;
         $("#areaParentLabel").textContent = api.parentLabel;
         try {
           const status = await json(`${api.base}/status`);
           const tags = $("#areaStatus");
           tags.hidden = false;
           tags.innerHTML = status.ready
-            ? `<span class="pill">${fmt.format(status.crawlAreas)} ${api.areaLabel} quét</span><span class="pill">${fmt.format(status.provinces)} ${api.parentLabel}</span><span class="pill">Cập nhật ${new Date(status.importedAt).toLocaleDateString("vi-VN")}</span>`
-            : `<span class="pill">Chưa có catalog</span>`;
+            ? `<span class="pill">${fmt.format(status.crawlAreas)} scan ${api.areaLabel}s</span><span class="pill">${fmt.format(status.provinces)} ${api.parentLabel}s</span><span class="pill">Updated ${new Date(status.importedAt).toLocaleDateString("en-US")}</span>`
+            : `<span class="pill">Catalog not loaded</span>`;
           if (!status.ready) {
             $("#areaWorkspace").hidden = true;
             $("#batchForm").hidden = true;
             $("#areaSelectionBar").hidden = true;
             return setAreaMessage(
-              "Chưa có dữ liệu ranh giới. Nhấn “Nạp/cập nhật catalog” để tải một lần và lưu cục bộ."
+              "No boundary catalog is available. Open Catalog tools to load it once and save it locally."
             );
           }
-          setAreaMessage(
-            `Chọn ${api.parentLabel} để tải bản đồ nhẹ hơn${api.countryLabel === "Hoa Kỳ" ? "; map không tải toàn bộ county cùng lúc." : ""}`
-          );
+          setAreaMessage("");
           if (!$("#provinceFilter").dataset.loaded) {
             const parents = await json(api.parentsEndpoint);
             $("#provinceFilter").insertAdjacentHTML(
@@ -931,7 +1615,6 @@
           }
           $("#areaWorkspace").hidden = false;
           $("#batchForm").hidden = false;
-          $("#areaSelectionBar").hidden = false;
           if (!areaMap && typeof L !== "undefined") {
             areaRenderer = L.canvas({ padding: 0.35 });
             areaMap = L.map("areaMap", { preferCanvas: true }).setView(
@@ -952,13 +1635,22 @@
         const provinceId = $("#provinceFilter").value;
         const q = $("#areaSearch").value.trim();
         try {
+          if (api.countryLabel === "United States" && !provinceId && !q) {
+            areaCatalog = [];
+            $("#areaListMeta").textContent = "Choose a State or search for a county.";
+            $("#areaList").innerHTML = '<p class="empty-area">Select a State to load counties.</p>';
+            updateBatchButton();
+            if (areaLayer) areaMap?.removeLayer(areaLayer);
+            areaLayer = null;
+            return;
+          }
           const result = await json(
             `${api.base}?${api.parentKey}=${encodeURIComponent(provinceId)}&q=${encodeURIComponent(q)}`
           );
           areaCatalog = result.areas;
           renderAreaList();
           if (!geometry) return;
-          if (api.countryLabel === "Hoa Kỳ" && !provinceId) {
+          if (api.countryLabel === "United States" && !provinceId) {
             if (areaLayer) areaMap.removeLayer(areaLayer);
             areaLayer = null;
             return;
@@ -975,15 +1667,15 @@
         const api = areaApi();
         const visible = areaCatalog.slice(0, 300);
         $("#areaListMeta").textContent =
-          `${fmt.format(areaCatalog.length)} ${api.areaLabel}${areaCatalog.length > visible.length ? ` · hiển thị ${visible.length} đầu` : ""}`;
+          `${fmt.format(areaCatalog.length)} ${api.areaLabel}${areaCatalog.length > visible.length ? ` · first ${visible.length} shown` : ""}`;
         $("#areaList").innerHTML = visible.length
           ? visible
               .map(
                 (area) =>
-                  `<button class="area-row" type="button" data-area-id="${esc(area.id)}" aria-pressed="${selectedAreaIds.has(area.id)}"><i class="area-check" aria-hidden="true"></i><span><b>${esc(area.name)}</b>${esc(area.parentName || "Chưa xác định")}</span></button>`
+                  `<button class="area-row" type="button" data-area-id="${esc(area.id)}" aria-pressed="${selectedAreaIds.has(area.id)}"><i class="area-check" aria-hidden="true"></i><span><b>${esc(area.name)}</b><small>${esc(api.parentLabel)}: ${esc(area.parentName || "Not recorded")}</small></span></button>`
               )
               .join("")
-          : '<p class="empty-area">Không có khu vực phù hợp.</p>';
+          : '<p class="empty-area">No matching areas.</p>';
         updateBatchButton();
       }
       function renderAreaMap(featureCollection, fit) {
@@ -1025,13 +1717,41 @@
         const count = selectedAreaIds.size;
         const button = $("#batchBtn");
         $("#areaSelectionCount").textContent = count
-          ? `Bước 1 hoàn tất: đã chọn ${fmt.format(count)} khu vực`
-          : "Bước 1: Chưa chọn khu vực";
+          ? `${fmt.format(count)} ${count === 1 ? "area" : "areas"} selected`
+          : "";
+        $("#areaSelectionBar").hidden = count === 0;
         $("#clearAreaSelection").disabled = count === 0;
         button.textContent = count
-          ? `Tạo đơn cho ${fmt.format(count)} khu vực`
-          : "Chọn khu vực trước";
+          ? `Create ${fmt.format(count)} jobs`
+          : "Select areas first";
         button.disabled = count === 0;
+        scheduleGridEstimate();
+      }
+
+      function scheduleGridEstimate() {
+        clearTimeout(areaEstimateTimer);
+        const count = selectedAreaIds.size;
+        const output = $("#gridEstimate");
+        if (!count) {
+          output.textContent = "Select counties to estimate the grid.";
+          return;
+        }
+        output.textContent = "Calculating planned grid…";
+        areaEstimateTimer = setTimeout(async () => {
+          const api = areaApi();
+          const stepMeters = Number($("#batchForm [name=STEP_METERS]").value);
+          try {
+            const result = await json(api.estimateEndpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ areaIds: Array.from(selectedAreaIds), STEP_METERS: stepMeters }),
+            });
+            if (count !== selectedAreaIds.size) return;
+            output.innerHTML = `<b>${fmt.format(result.totalGridCount)} planned grid points</b> across ${fmt.format(count)} ${count === 1 ? "area" : "areas"}.`;
+          } catch (error) {
+            output.textContent = error.message;
+          }
+        }, 350);
       }
       $("#clearAreaSelection").onclick = () => {
         selectedAreaIds.clear();
@@ -1052,12 +1772,13 @@
         if (areaLayer) areaMap?.removeLayer(areaLayer);
         areaLayer = null;
         if (areaMap) areaMap.setView(api.defaultView.slice(0, 2), api.defaultView[2]);
-        loadVietnamAreas();
+        loadAreaCatalog();
       };
       $("#areaSearch").oninput = () => {
         clearTimeout(areaSearchTimer);
         areaSearchTimer = setTimeout(() => refreshAreaList(), 220);
       };
+      $("#batchForm [name=STEP_METERS]").oninput = scheduleGridEstimate;
       $("#importVn").onclick = async () => {
         const api = areaApi();
         const button = $("#importVn"),
@@ -1066,7 +1787,7 @@
         log.hidden = false;
         log.textContent = "";
         setAreaMessage(
-          `Đang nạp catalog ${api.countryLabel}. Việc này chạy nền và chỉ cần làm lại khi muốn cập nhật dữ liệu.`
+          `Refreshing the ${api.countryLabel} catalog. This runs in the background and is only needed when boundary data changes.`
         );
         try {
           const started = await json(`${api.base}/import`, { method: "POST" });
@@ -1079,12 +1800,12 @@
             stream.close();
             button.disabled = false;
             if (event.data !== "finished")
-              return setAreaMessage("Không thể nhập catalog. Xem log để thử lại.", "error");
+              return setAreaMessage("The catalog refresh failed. Open the log and try again.", "error");
             $("#provinceFilter").dataset.loaded = "";
             $("#provinceFilter").innerHTML = `<option value="">${api.allLabel}</option>`;
             areaCatalog = [];
-            await loadVietnamAreas();
-            setAreaMessage("Catalog đã sẵn sàng. Bạn có thể chọn khu vực để tạo đơn.", "success");
+            await loadAreaCatalog();
+            setAreaMessage("The catalog is ready. Select areas to create jobs.", "success");
           });
         } catch (error) {
           button.disabled = false;
@@ -1108,7 +1829,7 @@
             }),
           });
           setAreaMessage(
-            `Đã tạo ${result.count} đơn quét; các đơn vượt giới hạn chạy đồng thời sẽ vào hàng chờ.`,
+            `Created ${result.count} jobs. Jobs above the concurrency limit are queued.`,
             "success"
           );
           selectedAreaIds.clear();
@@ -1128,7 +1849,7 @@
         const f = new FormData(e.target),
           m = $("#jobMsg");
         m.className = "msg";
-        m.textContent = "Đang tạo đơn quét...";
+        m.textContent = "Creating job…";
         try {
           const r = await fetch("/jobs", {
               method: "POST",
@@ -1143,7 +1864,7 @@
             j = await r.json();
           if (!r.ok) throw Error(j.error);
           m.className = "msg success";
-          m.textContent = j.queued ? "Đơn quét đã vào hàng chờ." : "Đơn quét đã bắt đầu.";
+          m.textContent = j.queued ? "Job added to the queue." : "Job started.";
           await load();
           tab("jobs");
         } catch (x) {
@@ -1157,7 +1878,7 @@
           m = $("#polyMsg"),
           b = $("#polyBtn");
         b.disabled = true;
-        m.textContent = "Đang tải ranh giới...";
+        m.textContent = "Downloading boundaries…";
         try {
           const r = await fetch("/polygons", {
               method: "POST",
@@ -1190,8 +1911,8 @@
           m.className = "msg " + (e.data === "finished" ? "success" : "error");
           m.textContent =
             e.data === "finished"
-              ? "Đã tải xong ranh giới các thành phố."
-              : "Tải ranh giới không hoàn tất.";
+              ? "City boundaries downloaded."
+              : "Boundary download did not finish.";
           $("#polyBtn").disabled = false;
           window.ps.close();
         });
@@ -1200,20 +1921,56 @@
         const r = await fetch("/jobs");
         if (!r.ok) return;
         const payload = await r.json();
-        data = payload.jobs || [];
+        data = await hydrateMissingJobStates(payload.jobs || []);
         jobStats = payload.stats || {};
         render();
+      }
+      async function hydrateMissingJobStates(jobs) {
+        const cities = [
+          ...new Set(
+            jobs
+              .filter((job) => job.COUNTRY === "United States" && !job.STATE && job.CITY)
+              .map((job) => String(job.CITY).trim())
+          ),
+        ].slice(0, 100);
+        if (!cities.length) return jobs;
+        const states = new Map(
+          await Promise.all(
+            cities.map(async (city) => {
+              try {
+                const result = await json(`/areas/us?q=${encodeURIComponent(city)}`);
+                const exactStates = [
+                  ...new Set(
+                    (result.areas || [])
+                      .filter((area) => String(area.name || "").trim().toLocaleLowerCase() === city.toLocaleLowerCase())
+                      .map((area) => area.parentName)
+                      .filter(Boolean)
+                  ),
+                ];
+                return [city.toLocaleLowerCase(), exactStates.length === 1 ? exactStates[0] : ""];
+              } catch {
+                return [city.toLocaleLowerCase(), ""];
+              }
+            })
+          )
+        );
+        return jobs.map((job) => ({
+          ...job,
+          STATE:
+            job.STATE || states.get(String(job.CITY || "").trim().toLocaleLowerCase()) || "",
+        }));
       }
       function render() {
         const running = Number(jobStats.running || 0),
           queued = Number(jobStats.queued || 0),
           maxConcurrent = Number(jobStats.maxConcurrent || 0),
           maxInput = $("#maxConcurrent");
-        $("#jobQueueSummary").innerHTML = `<b>${fmt.format(running)} / ${fmt.format(maxConcurrent)}</b> job đang chạy · <b>${fmt.format(queued)}</b> job đang chờ`;
+        $("#jobQueueSummary").innerHTML =
+          `<b>${fmt.format(running)} / ${fmt.format(maxConcurrent)}</b> running · <b>${fmt.format(queued)}</b> queued`;
         if (document.activeElement !== maxInput && maxConcurrent) maxInput.value = maxConcurrent;
         const q = $("#search").value.toLowerCase(),
           a = data.filter((j) =>
-            (j.CITY + " " + (j.COUNTRY || "") + " " + j.KEYWORDS.join(" "))
+            (j.CITY + " " + (j.STATE || "") + " " + (j.COUNTRY || "") + " " + j.KEYWORDS.join(" "))
               .toLowerCase()
               .includes(q)
           ),
@@ -1226,28 +1983,35 @@
                   t = +c.totalCells || 0,
                   n = +c.currentCell || 0,
                   p = t ? Math.min(100, Math.round((n / t) * 100)) : 0,
+                  planned = Number(j.plannedGridCount || t || 0),
+                  totalGrid = t || planned,
+                  location = [displayCountry(j.COUNTRY), j.STATE].filter(Boolean).join(" · "),
                   efficiency = bm.earlyDuplicatesSkipped
-                    ? ` · tránh ${fmt.format(bm.earlyDuplicatesSkipped)} detail trùng`
+                    ? ` · ${fmt.format(bm.earlyDuplicatesSkipped)} duplicate details skipped`
                     : "",
                   report = j.report || {},
-                  timing = `<div class="meta">Tạo: ${esc(formatDateTime(report.created_at))} · Chạy: ${esc(formatDuration(report.active_duration_seconds))}${report.completed_at ? ` · Xong: ${esc(formatDateTime(report.completed_at))}` : ""}</div>`,
+                  timing = `<div class="meta">${report.completed_at ? `Finished ${esc(formatDateTime(report.completed_at))}` : `Created ${esc(formatDateTime(report.created_at))} · ${esc(formatDuration(report.active_duration_seconds))}`}</div>`,
                   resumable = ["failed", "paused", "interrupted"].includes(j.status),
-                  error = j.lastError
-                    ? `<div class="meta error" title="${esc(j.lastError)}">Lỗi: ${esc(j.lastError).slice(0, 180)}</div>`
+                  errorText = displayJobError(j.lastError),
+                  error = errorText
+                    ? `<div class="meta error" title="${esc(errorText)}">Error: ${esc(errorText).slice(0, 180)}</div>`
                     : "",
-                  files = `<div class="file-actions"><a class="btn" href="${j.csvUrl}" target="_blank">Leads CSV</a>${j.reportCsvUrl ? `<a class="btn" href="${j.reportCsvUrl}" target="_blank">Báo cáo CSV</a>` : ""}<a class="btn" href="/jobs/${j.id}/excel" target="_blank">Excel</a><a class="btn" href="${j.checkpointUrl}" target="_blank">Checkpoint</a></div>`,
-                  queueInfo = j.status === "queued" && j.queuePosition ? ` · vị trí chờ #${j.queuePosition}` : "";
-                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} · ${esc(j.CITY)}</div><div class="meta">${esc(j.COUNTRY || "Chưa ghi quốc gia")}${queueInfo}</div>${timing}${error}</div><div><div class="meta"><b>${n}${t ? " / " + t : ""}</b> grid · ${c.processedCount || 0} doanh nghiệp${efficiency}</div><div class="track"><div class="bar" style="width:${p}%"></div></div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">Xem chi tiết</button>${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Tạm dừng</button>` : ""}${resumable ? `<button class="btn primary" data-a="resume" data-id="${j.id}">Tiếp tục${t ? ` (${Math.min(n + 1, t)}/${t})` : ""}</button>` : ""}${files}<button class="btn danger" data-a="del" data-id="${j.id}">Xóa</button></div></article>`;
+                  actions = `<details class="job-more"><summary class="btn primary">Actions</summary><div class="file-actions" role="menu">${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Pause job</button>` : ""}${resumable ? `<button class="btn primary" data-a="resume" data-id="${j.id}">Resume${totalGrid ? ` (${Math.min(n + 1, totalGrid)}/${totalGrid})` : ""}</button>` : ""}<button class="btn" data-a="clone" data-id="${j.id}">Duplicate & edit</button><a class="btn" href="${j.csvUrl}" target="_blank">Leads CSV</a>${j.reportCsvUrl ? `<a class="btn" href="${j.reportCsvUrl}" target="_blank">Report CSV</a>` : ""}<a class="btn" href="/jobs/${j.id}/excel" target="_blank">Excel</a><a class="btn" href="${j.checkpointUrl}" target="_blank">Checkpoint</a><button class="btn danger" data-a="del" data-id="${j.id}">Delete job</button></div></details>`,
+                  queueInfo =
+                    j.status === "queued" && j.queuePosition
+                      ? ` · queue position #${j.queuePosition}`
+                      : "";
+                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} <span aria-hidden="true">/</span> ${esc(j.CITY)}</div><div class="job-config"><span>${esc(location)}${queueInfo}</span><span><b>${fmt.format(Number(j.STEP_METERS) || 0)} m</b> grid</span><span><b>${planned ? fmt.format(planned) : "—"}</b> planned</span></div>${timing}${error}</div><div class="job-metrics"><div class="job-progress-head"><span class="meta">Progress</span><b>${p}%</b></div><div class="track" aria-label="${fmt.format(n)} of ${totalGrid ? fmt.format(totalGrid) : "unknown"} grid complete"><div class="bar" style="width:${p}%"></div></div><div class="job-quick-stats"><b>${fmt.format(n)} / ${totalGrid ? fmt.format(totalGrid) : "—"}</b> grid · <b>${fmt.format(c.processedCount || 0)}</b> businesses${efficiency}</div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">View</button>${actions}</div></article>`;
               })
               .join("")
-          : '<div class="card" style="max-width:none"><h2>Chưa có đợt quét phù hợp</h2><p class="lead">Tạo đơn quét mới để bắt đầu.</p></div>';
+          : '<div class="card" style="max-width:none"><h2>No matching jobs</h2><p class="lead">Create a job to get started.</p></div>';
       }
       $("#jobLimitForm").onsubmit = async (event) => {
         event.preventDefault();
         const message = $("#jobQueueMsg"),
           maxConcurrent = Number($("#maxConcurrent").value);
         message.className = "msg";
-        message.textContent = "Đang cập nhật giới hạn job…";
+        message.textContent = "Updating job limit…";
         try {
           const result = await json("/jobs/settings", {
             method: "PATCH",
@@ -1255,7 +2019,7 @@
             body: JSON.stringify({ maxConcurrent }),
           });
           message.className = "msg success";
-          message.textContent = `Đã đặt tối đa ${result.maxConcurrent} job chạy đồng thời.`;
+          message.textContent = `Maximum concurrent jobs set to ${result.maxConcurrent}.`;
           await load();
         } catch (error) {
           message.className = "msg error";
@@ -1268,6 +2032,7 @@
         if (!b) return;
         const { id, a } = b.dataset;
         if (a === "view") return view(id);
+        if (a === "clone") return openClone(id);
         if (a === "stop") {
           await fetch("/jobs/" + id + "/stop", { method: "POST" });
           return load();
@@ -1275,12 +2040,91 @@
         if (a === "resume") {
           b.disabled = true;
           const r = await fetch("/jobs/" + id + "/resume", { method: "POST" });
-          if (!r.ok) alert((await r.json()).error || "Không thể tiếp tục job");
+          if (!r.ok) alert((await r.json()).error || "Unable to resume job.");
           return load();
         }
-        if (a === "del" && confirm("Xóa đợt quét này khỏi danh sách?")) {
+        if (a === "del" && confirm("Delete this job from the list?")) {
           await fetch("/jobs/" + id, { method: "DELETE" });
           load();
+        }
+      };
+      document.addEventListener("click", (event) => {
+        document.querySelectorAll(".job-more[open]").forEach((menu) => {
+          if (!menu.contains(event.target)) menu.removeAttribute("open");
+        });
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        document
+          .querySelectorAll(".job-more[open]")
+          .forEach((menu) => menu.removeAttribute("open"));
+      });
+      function scheduleCloneEstimate() {
+        clearTimeout(cloneEstimateTimer);
+        const jobId = $("#cloneJobId").value;
+        const stepMeters = Number($("#cloneStep").value);
+        const output = $("#cloneEstimate");
+        if (!jobId || !Number.isFinite(stepMeters) || stepMeters < 100) {
+          output.textContent = "Enter a grid spacing of at least 100 m.";
+          return;
+        }
+        output.textContent = "Calculating planned grid…";
+        cloneEstimateTimer = setTimeout(async () => {
+          try {
+            const result = await json(`/jobs/${jobId}/estimate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ STEP_METERS: stepMeters }),
+            });
+            output.innerHTML = result.plannedGridCount
+              ? `<b>${fmt.format(result.plannedGridCount)} planned grid points.</b> This is a new job; the original remains unchanged.`
+              : "The original boundary is not available yet, so this grid count will calculate when the job starts.";
+          } catch (error) {
+            output.textContent = error.message;
+          }
+        }, 280);
+      }
+      function openClone(id) {
+        const job = data.find((item) => item.id === id);
+        if (!job) return;
+        $("#cloneJobId").value = id;
+        $("#cloneKeywords").value = job.KEYWORDS.join("\n");
+        $("#cloneStep").value = job.STEP_METERS || 1200;
+        $("#cloneSub").textContent = [job.CITY, job.STATE, displayCountry(job.COUNTRY)]
+          .filter(Boolean)
+          .join(" · ");
+        $("#cloneMsg").textContent = "";
+        $("#cloneDialog").showModal();
+        scheduleCloneEstimate();
+      }
+      $("#cloneStep").oninput = scheduleCloneEstimate;
+      $("#cloneForm").onsubmit = async (event) => {
+        event.preventDefault();
+        const id = $("#cloneJobId").value;
+        const message = $("#cloneMsg");
+        const submit = $("#cloneForm button[type=submit]");
+        submit.disabled = true;
+        message.className = "msg";
+        message.textContent = "Creating duplicate job…";
+        try {
+          const result = await json(`/jobs/${id}/clone`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              keywords: $("#cloneKeywords").value,
+              STEP_METERS: Number($("#cloneStep").value),
+              state: data.find((job) => job.id === id)?.STATE || "",
+            }),
+          });
+          message.className = "msg success";
+          message.textContent = result.queued ? "Duplicate job added to the queue." : "Duplicate job started.";
+          await load();
+          setTimeout(() => $("#cloneDialog").close(), 450);
+        } catch (error) {
+          message.className = "msg error";
+          message.textContent = error.message;
+        } finally {
+          submit.disabled = false;
         }
       };
       function view(id) {
@@ -1288,7 +2132,9 @@
         if (!j) return;
         close();
         $("#dtitle").textContent = j.KEYWORDS.join(" · ") + " · " + j.CITY;
-        $("#dsub").textContent = (j.COUNTRY || "") + " · " + (labels[j.status] || j.status);
+        $("#dsub").textContent = [displayCountry(j.COUNTRY), j.STATE, labels[j.status] || j.status]
+          .filter(Boolean)
+          .join(" · ");
         $("#logs").textContent = "";
         $("#dialog").showModal();
         progress(id);
@@ -1308,9 +2154,10 @@
         const r = await fetch("/jobs/" + id + "/progress");
         if (!r.ok) return;
         const x = await r.json();
-        const bm = x.benchmarkMetrics || {}, report = x.report || {};
+        const bm = x.benchmarkMetrics || {},
+          report = x.report || {};
         $("#sum").innerHTML =
-          `<span>Tạo: <b>${esc(formatDateTime(report.created_at))}</b></span><span>Chạy: <b>${esc(formatDuration(report.active_duration_seconds))}</b></span>${report.completed_at ? `<span>Hoàn thành: <b>${esc(formatDateTime(report.completed_at))}</b></span>` : ""}<span>Grid: <b>${x.currentCell || 0} / ${x.totalCells || "?"}</b></span><span>Doanh nghiệp: <b>${x.processedCount || 0}</b></span><span>Detail mở: <b>${bm.detailPagesOpened || 0}</b></span><span>Trùng tránh được: <b>${bm.earlyDuplicatesSkipped || 0}</b></span><span>Từ khóa: <b>${esc(x.lastKeyword || "-")}</b></span>`;
+          `<span>Created: <b>${esc(formatDateTime(report.created_at))}</b></span><span>Active: <b>${esc(formatDuration(report.active_duration_seconds))}</b></span>${report.completed_at ? `<span>Finished: <b>${esc(formatDateTime(report.completed_at))}</b></span>` : ""}<span>Grid: <b>${x.currentCell || 0} / ${x.totalCells || "?"}</b></span><span>Businesses: <b>${x.processedCount || 0}</b></span><span>Details opened: <b>${bm.detailPagesOpened || 0}</b></span><span>Duplicates skipped: <b>${bm.earlyDuplicatesSkipped || 0}</b></span><span>Term: <b>${esc(x.lastKeyword || "-")}</b></span>`;
         renderMaps(x);
       }
       function renderMaps(x) {
@@ -1399,6 +2246,7 @@
         close();
       };
       $("#dialog").onclose = close;
+      tab("areas");
       load();
     </script>
   </body>

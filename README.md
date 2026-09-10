@@ -173,6 +173,65 @@ docker compose down
 
 App listens on `http://localhost:8080`.
 
+## System monitoring
+
+The **Hệ thống** tab keeps two scopes separate:
+
+- **Máy chủ VPS** is a snapshot collected on the Linux host.
+- **Ứng dụng quét** is the Docker cgroup that contains Node, workers, and Chromium.
+
+The app never treats a container's `/proc` values as whole-VPS values. The host collector writes a
+small, non-sensitive snapshot to `data/system-metrics.json`; the authenticated web app reads that
+file. It does not need Docker socket access, a privileged container, or an additional public port.
+
+On a Linux VPS, make the collector executable and run it once to create the first snapshot:
+
+```bash
+chmod +x scripts/collect_vps_metrics.sh
+./scripts/collect_vps_metrics.sh
+```
+
+Schedule it every 5 seconds with a `systemd` timer. Adjust `WorkingDirectory` to the deployed
+repository path:
+
+```ini
+# /etc/systemd/system/maps-vps-metrics.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/maps-scraper
+ExecStart=/opt/maps-scraper/scripts/collect_vps_metrics.sh
+```
+
+```ini
+# /etc/systemd/system/maps-vps-metrics.timer
+[Unit]
+Description=Collect Maps Prospects VPS metrics
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=5s
+AccuracySec=1s
+Unit=maps-vps-metrics.service
+
+[Install]
+WantedBy=timers.target
+```
+
+Then enable it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now maps-vps-metrics.timer
+```
+
+The first CPU snapshot has no percentage because CPU is measured from the change between two
+samples. The UI polls only while the **Hệ thống** tab is open. A stale or absent host snapshot is
+shown as unavailable, never as `0%`.
+
+For local macOS development, the tab uses a native machine fallback so UI and sampling logic can be
+tested without Docker. Those measurements are deliberately labeled **Máy local** and must not be
+used as a VPS concurrency limit.
+
 ## Limitations
 
 - Google Maps DOM changes can break selectors and require scraper updates.

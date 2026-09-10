@@ -29,7 +29,7 @@ function createJobStore({ persistencePath } = {}) {
         if (["running", "stopping", "queued"].includes(job.status)) {
           job.status = "interrupted";
           job.lastError =
-            "Server đã khởi động lại khi job đang chạy. Có thể tiếp tục từ checkpoint.";
+            "The server restarted while this job was active. Resume it from its checkpoint.";
         }
         jobs.set(String(job.id), job);
       }
@@ -37,7 +37,7 @@ function createJobStore({ persistencePath } = {}) {
       jobSeq = Math.max(Number(saved.jobSeq) || 1, largestId + 1);
       persist();
     } catch (error) {
-      console.error("[JOB STORE] Không thể đọc jobs đã lưu:", error.message);
+      console.error("[JOB STORE] Unable to read saved jobs:", error.message);
     }
   }
 

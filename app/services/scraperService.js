@@ -3,6 +3,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 const { sanitize, toInt, toBool } = require("../utils/parsers");
 const { buildJobReport, writeJobReport } = require("./jobReportService");
+const { estimateGridCountFromFile } = require("../utils/gridEstimator");
 
 function createScraperService({ config, store }) {
   const { defaults, resultsBase, scriptPath, rootDir } = config;
@@ -10,7 +11,7 @@ function createScraperService({ config, store }) {
 
   fs.mkdirSync(resultsBase, { recursive: true });
   if (!fs.existsSync(scriptPath)) {
-    throw new Error(`Không thấy scraper: ${scriptPath}`);
+    throw new Error(`Scraper script not found: ${scriptPath}`);
   }
 
   function ensureJobTracking(job) {
@@ -89,11 +90,12 @@ function createScraperService({ config, store }) {
         createdAt: fs.statSync(resultsDir).birthtimeMs,
         lastError: complete
           ? null
-          : "Job cũ được khôi phục từ checkpoint. Có thể tiếp tục từ vị trí đã lưu.",
+          : "A legacy job was restored from its checkpoint and can resume from the saved position.",
         logs: [],
         env: {
           CITY: checkpoint.city,
           COUNTRY: "",
+          STATE: "",
           KEYWORDS: checkpoint.keywords,
           RESULTS_DIR: resultsDir,
           CSV_PATH: csvName ? path.join(resultsDir, csvName) : path.join(resultsDir, "results.csv"),
@@ -149,6 +151,27 @@ function createScraperService({ config, store }) {
     return { resultsDir, csvPath, checkpointPath, profileDir, reportCsvPath };
   }
 
+  function knownPolygonPath(city, configuredPath) {
+    if (configuredPath && fs.existsSync(configuredPath)) return configuredPath;
+    const normalized = String(city || "").normalize("NFC");
+    const safe = normalized
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/Ä/g, "Ae")
+      .replace(/Ö/g, "Oe")
+      .replace(/Ü/g, "Ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^\wäöüÄÖÜß-]+/g, "_");
+    const roots = [path.dirname(scriptPath), rootDir, path.join(rootDir, "Polygon_List")];
+    return (
+      roots
+        .map((root) => path.join(root, `polygon_${safe}.json`))
+        .find((candidate) => fs.existsSync(candidate)) ||
+      configuredPath
+    );
+  }
+
   function pushLog(job, line, stream = "stdout") {
     const entry = `[${new Date().toISOString()}] [${stream}] ${line}`;
     job.logs.push(entry);
@@ -171,6 +194,7 @@ function createScraperService({ config, store }) {
     const {
       CITY,
       COUNTRY,
+      STATE,
       KEYWORDS,
       RESULTS_DIR,
       CSV_PATH,
@@ -193,6 +217,7 @@ function createScraperService({ config, store }) {
       ...process.env,
       CITY,
       COUNTRY,
+      STATE,
       KEYWORDS: KEYWORDS.join("|"),
       RESULTS_DIR,
       CSV_PATH,
@@ -224,7 +249,7 @@ function createScraperService({ config, store }) {
       });
     } catch (error) {
       finishCurrentRun(job, "failed");
-      job.lastError = `Không thể khởi động worker: ${error.message}`;
+      job.lastError = `Unable to start worker: ${error.message}`;
       pushLog(job, `${job.lastError}\n`, "process");
       store.persist();
       refreshJobReport(job);
@@ -261,7 +286,7 @@ function createScraperService({ config, store }) {
       }
       if (job.status === "failed") {
         job.lastError =
-          job.stderrTail?.trim() || `Worker dừng với mã ${code}${signal ? ` (${signal})` : ""}.`;
+          job.stderrTail?.trim() || `Worker exited with code ${code}${signal ? ` (${signal})` : ""}.`;
       }
       pushLog(job, `Process exited with code ${code}${signal ? `, signal ${signal}` : ""}`, "exit");
       store.persist();
@@ -273,6 +298,7 @@ function createScraperService({ config, store }) {
   function createJob(body) {
     const city = (body.city || "").trim();
     const country = (body.country || "").trim();
+    const state = (body.state || "").trim();
     let keywords = body.keywords;
     if (typeof keywords === "string") {
       keywords = keywords
@@ -282,7 +308,7 @@ function createScraperService({ config, store }) {
     }
 
     if (!city || !Array.isArray(keywords) || keywords.length === 0) {
-      return { error: "Thiếu city hoặc keywords" };
+      return { error: "City and search terms are required." };
     }
 
     const STEP_METERS = toInt(body.STEP_METERS, defaults.stepMeters);
@@ -291,12 +317,14 @@ function createScraperService({ config, store }) {
     const RESET_EVERY_CELLS = toInt(body.RESET_EVERY_CELLS, defaults.resetEveryCells);
     const BROWSER_MAX_AGE_MS = toInt(body.BROWSER_MAX_AGE_MS, defaults.browserMaxAgeMs);
     const HEADLESS = toBool(body.HEADLESS, defaults.headless);
-    const POLYGON_PATH = (body.POLYGON_PATH || defaults.polygonPath).toString().trim();
+    const configuredPolygonPath = (body.POLYGON_PATH || defaults.polygonPath).toString().trim();
+    const POLYGON_PATH = knownPolygonPath(city, configuredPolygonPath);
     const FALLBACK_RADIUS_METERS = toInt(
       body.FALLBACK_RADIUS_METERS,
       defaults.fallbackRadiusMeters
     );
     const ALLOW_ROUGH_BBOX = toBool(body.ALLOW_ROUGH_BBOX, defaults.allowRoughBbox);
+    const plannedGridCount = estimateGridCountFromFile(POLYGON_PATH, STEP_METERS, MAX_CELLS);
 
     const id = store.nextJobId();
     const { resultsDir, csvPath, checkpointPath, profileDir, reportCsvPath } = makeEnvAndPaths({
@@ -317,6 +345,7 @@ function createScraperService({ config, store }) {
       env: {
         CITY: city,
         COUNTRY: country,
+        STATE: state,
         KEYWORDS: keywords,
         RESULTS_DIR: resultsDir,
         CSV_PATH: csvPath,
@@ -336,6 +365,7 @@ function createScraperService({ config, store }) {
       },
       logs: [],
       lastError: null,
+      plannedGridCount,
       stderrTail: "",
       resultsPaths: {
         RESULTS_DIR: resultsDir,
@@ -373,6 +403,7 @@ function createScraperService({ config, store }) {
           lastError: j.lastError || null,
           CITY: j.env.CITY,
           COUNTRY: j.env.COUNTRY,
+          STATE: j.env.STATE || "",
           KEYWORDS: j.env.KEYWORDS,
           queuePosition: j.status === "queued" ? store.queuePosition(j.id) : null,
           ...j.resultsPaths,
@@ -383,30 +414,37 @@ function createScraperService({ config, store }) {
           checkpointSummary: {
             processedCount: ck.processedCount || 0,
             currentCell: ck.currentCell || ck.nextCellIndex || 0,
-            totalCells: ck.totalCells || 0,
+            totalCells: ck.totalCells || j.plannedGridCount || 0,
             timestamp: ck.timestamp || "",
             benchmarkMetrics: ck.benchmarkMetrics || null,
           },
+          plannedGridCount: j.plannedGridCount || 0,
+          STEP_METERS: j.env.STEP_METERS,
         };
       })
       .sort((a, b) => b.createdAt - a.createdAt);
 
     return {
       jobs,
-      stats: {
-        running: jobs.filter((j) => j.status === "running").length,
-        failed: jobs.filter((j) => j.status === "failed").length,
-        queued: jobs.filter((j) => j.status === "queued").length,
-        queueLength: store.queueLength(),
-        maxConcurrent,
-      },
+      stats: getStats(),
+    };
+  }
+
+  function getStats() {
+    const jobs = store.allJobs();
+    return {
+      running: jobs.filter((j) => j.status === "running").length,
+      failed: jobs.filter((j) => j.status === "failed").length,
+      queued: jobs.filter((j) => j.status === "queued").length,
+      queueLength: store.queueLength(),
+      maxConcurrent,
     };
   }
 
   function setMaxConcurrent(value) {
     const nextMax = Number(value);
     if (!Number.isInteger(nextMax) || nextMax < 1) {
-      return { error: "maxConcurrent phải là số nguyên lớn hơn 0" };
+      return { error: "Maximum concurrent jobs must be a whole number greater than zero." };
     }
 
     maxConcurrent = nextMax;
@@ -446,7 +484,7 @@ function createScraperService({ config, store }) {
         ? `/results/${path.relative(resultsBase, j.resultsPaths.POLYGON_OUT_PATH)}`
         : null;
 
-    const totalCells = ck.totalCells || (Array.isArray(centers) ? centers.length : 0);
+    const totalCells = ck.totalCells || (Array.isArray(centers) ? centers.length : 0) || j.plannedGridCount || 0;
     let currentCell = ck.currentCell || ck.nextCellIndex || 0;
     if (!currentCell && j.status === "running") {
       currentCell = (ck.nextCellIndex || 0) + 1;
@@ -456,6 +494,7 @@ function createScraperService({ config, store }) {
       id: j.id,
       status: j.status,
       city: j.env.CITY,
+      state: j.env.STATE || "",
       totalCells,
       currentCell,
       gridRows: ck.gridRows || [],
@@ -474,6 +513,30 @@ function createScraperService({ config, store }) {
       queuePosition: queuePosition(j.id),
       report,
     };
+  }
+
+  function cloneJob(id, overrides = {}) {
+    const source = store.getJob(id);
+    if (!source) return { notFound: true };
+    return createJob({
+      city: overrides.city ?? source.env.CITY,
+      country: overrides.country ?? source.env.COUNTRY,
+      state: overrides.state ?? source.env.STATE,
+      keywords: overrides.keywords ?? source.env.KEYWORDS,
+      STEP_METERS: overrides.STEP_METERS ?? source.env.STEP_METERS,
+      MAX_CELLS: source.env.MAX_CELLS,
+      MAX_LINKS_PER_CELL: source.env.MAX_LINKS_PER_CELL,
+      RESET_EVERY_CELLS: source.env.RESET_EVERY_CELLS,
+      BROWSER_MAX_AGE_MS: source.env.BROWSER_MAX_AGE_MS,
+      HEADLESS: source.env.HEADLESS,
+      POLYGON_PATH: source.env.POLYGON_PATH,
+      FALLBACK_RADIUS_METERS: source.env.FALLBACK_RADIUS_METERS,
+      ALLOW_ROUGH_BBOX: source.env.ALLOW_ROUGH_BBOX,
+    });
+  }
+
+  function estimateGridCount(polygonPath, stepMeters) {
+    return estimateGridCountFromFile(polygonPath, stepMeters);
   }
 
   function stopJob(id) {
@@ -510,10 +573,10 @@ function createScraperService({ config, store }) {
     const job = store.getJob(id);
     if (!job) return { notFound: true };
     if (!["failed", "paused", "interrupted"].includes(job.status)) {
-      return { error: "Chỉ có thể tiếp tục job đã lỗi, tạm dừng hoặc bị gián đoạn" };
+      return { error: "Only failed, paused, or interrupted jobs can be resumed." };
     }
     if (!fs.existsSync(job.resultsPaths.CHECKPOINT_PATH)) {
-      return { error: "Không tìm thấy checkpoint để tiếp tục job này" };
+      return { error: "No checkpoint was found for this job." };
     }
 
     if (currentRunning() < maxConcurrent) {
@@ -549,7 +612,10 @@ function createScraperService({ config, store }) {
 
   return {
     createJob,
+    cloneJob,
+    estimateGridCount,
     listJobs,
+    getStats,
     getJob,
     getJobReport,
     getJobProgress,

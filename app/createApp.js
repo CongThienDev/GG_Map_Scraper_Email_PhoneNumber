@@ -8,10 +8,12 @@ const { createAuthRoutes } = require("./routes/authRoutes");
 const { createJobRoutes } = require("./routes/jobRoutes");
 const { createPolygonRoutes } = require("./routes/polygonRoutes");
 const { createAreaRoutes } = require("./routes/areaRoutes");
+const { createSystemRoutes } = require("./routes/systemRoutes");
 const { createJobStore } = require("./services/jobStore");
 const { createScraperService } = require("./services/scraperService");
 const { createPolygonService } = require("./services/polygonService");
 const { createAreaCatalogService } = require("./services/areaCatalogService");
+const { createSystemMetricsService } = require("./services/systemMetricsService");
 const {
   createVietnamImportService,
   createUnitedStatesImportService,
@@ -33,6 +35,10 @@ function createApp(config) {
 
   const store = createJobStore({ persistencePath: config.jobsPath });
   const scraperService = createScraperService({ config, store });
+  const systemMetricsService = createSystemMetricsService({
+    rootDir: config.rootDir,
+    getJobStats: () => scraperService.getStats(),
+  });
   const polygonService = createPolygonService({ rootDir: config.rootDir });
   const areaCatalogService = createAreaCatalogService({ rootDir: config.rootDir });
   const unitedStatesAreaCatalogService = createAreaCatalogService({
@@ -67,6 +73,7 @@ function createApp(config) {
       unitedStatesImportService,
     })
   );
+  app.use(createSystemRoutes({ systemMetricsService }));
 
   app.use((err, req, res, next) => {
     console.error("[UNHANDLED]", err);
