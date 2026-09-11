@@ -277,9 +277,9 @@
         color: var(--ink);
       }
       .jobs-controls {
-        display: flex;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
         align-items: end;
-        justify-content: space-between;
         gap: 24px;
         margin: 0 0 22px;
         padding: 14px 0;
@@ -296,6 +296,92 @@
       }
       .queue-form input {
         padding: 8px 10px;
+      }
+      .job-status-filters {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+      .job-status-filters legend {
+        padding: 0;
+        margin-right: 2px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .status-filter {
+        position: relative;
+        display: inline-flex;
+        min-height: 34px;
+      }
+      .status-filter input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      .status-filter span {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: #fff;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+        transition:
+          background-color 160ms ease,
+          border-color 160ms ease,
+          color 160ms ease;
+      }
+      .status-filter input:focus-visible + span {
+        outline: 3px solid #84adff;
+        outline-offset: 2px;
+      }
+      .status-filter.all input:checked + span {
+        border-color: #b2ccff;
+        background: #eff4ff;
+        color: #1849a9;
+      }
+      .status-filter.queued input:checked + span {
+        border-color: #d0d5dd;
+        background: #f2f4f7;
+        color: #344054;
+      }
+      .status-filter.running input:checked + span {
+        border-color: #b2ddff;
+        background: #eff8ff;
+        color: #175cd3;
+      }
+      .status-filter.paused input:checked + span {
+        border-color: #fedf89;
+        background: #fffaeb;
+        color: #b54708;
+      }
+      .status-filter.finished input:checked + span {
+        border-color: #abefc6;
+        background: #ecfdf3;
+        color: #067647;
+      }
+      .status-filter.interrupted input:checked + span {
+        border-color: #fecdca;
+        background: #fef3f2;
+        color: #b42318;
       }
       .system-toolbar {
         display: flex;
@@ -426,6 +512,7 @@
         display: flex;
         gap: 8px;
         align-items: center;
+        color: #344054;
         font-weight: 700;
       }
       .dot {
@@ -434,20 +521,19 @@
         border-radius: 50%;
         background: currentColor;
       }
-      .running,
-      .finished {
+      .state.running {
+        color: var(--blue);
+      }
+      .state.finished {
         color: var(--green);
       }
-      .queued {
-        color: #475467;
-      }
-      .failed {
-        color: var(--red);
-      }
-      .paused,
-      .interrupted,
-      .stopping {
+      .state.paused,
+      .state.stopping {
         color: var(--amber);
+      }
+      .state.interrupted,
+      .state.failed {
+        color: var(--red);
       }
       .title {
         margin-top: 5px;
@@ -473,6 +559,16 @@
       }
       .job-actions > .btn {
         white-space: nowrap;
+      }
+      .excel-download {
+        border-color: #abefc6;
+        background: #f6fef9;
+        color: #067647;
+      }
+      .excel-download:hover:not(:disabled) {
+        border-color: #6ce9a6;
+        background: #ecfdf3;
+        color: #05603a;
       }
       .job-metrics {
         display: grid;
@@ -893,6 +989,9 @@
           align-items: stretch;
           flex-direction: column;
         }
+        .jobs-controls {
+          grid-template-columns: 1fr;
+        }
         .jobs-controls,
         .area-heading {
           align-items: stretch;
@@ -1145,6 +1244,27 @@
               id="search"
               placeholder="City or search term"
           /></label>
+          <fieldset class="job-status-filters" aria-label="Filter jobs by status">
+            <legend>Status</legend>
+            <label class="status-filter all"
+              ><input id="statusAll" type="checkbox" checked /><span>All statuses</span></label
+            >
+            <label class="status-filter queued"
+              ><input data-status-filter="queued" type="checkbox" checked /><span>Queued</span></label
+            >
+            <label class="status-filter running"
+              ><input data-status-filter="running" type="checkbox" checked /><span>Running</span></label
+            >
+            <label class="status-filter paused"
+              ><input data-status-filter="paused" type="checkbox" checked /><span>Paused</span></label
+            >
+            <label class="status-filter finished"
+              ><input data-status-filter="finished" type="checkbox" checked /><span>Finished</span></label
+            >
+            <label class="status-filter interrupted"
+              ><input data-status-filter="interrupted" type="checkbox" checked /><span>Interrupted</span></label
+            >
+          </fieldset>
         </div>
         <p class="msg" id="jobQueueMsg" aria-live="polite"></p>
         <div class="jobs" id="jobList"></div>
@@ -1315,6 +1435,13 @@
         paused: "Paused",
         interrupted: "Interrupted",
         stopping: "Stopping",
+      };
+      const statusFilterGroups = {
+        queued: ["queued"],
+        running: ["running"],
+        paused: ["paused", "stopping"],
+        finished: ["finished"],
+        interrupted: ["interrupted", "failed"],
       };
       function tab(id) {
         ["cities", "areas", "jobs", "system"].forEach((x) => {
@@ -1969,7 +2096,13 @@
           `<b>${fmt.format(running)} / ${fmt.format(maxConcurrent)}</b> running · <b>${fmt.format(queued)}</b> queued`;
         if (document.activeElement !== maxInput && maxConcurrent) maxInput.value = maxConcurrent;
         const q = $("#search").value.toLowerCase(),
+          selectedStatuses = new Set(
+            [...document.querySelectorAll("input[data-status-filter]:checked")].flatMap(
+              (input) => statusFilterGroups[input.dataset.statusFilter]
+            )
+          ),
           a = data.filter((j) =>
+            selectedStatuses.has(j.status) &&
             (j.CITY + " " + (j.STATE || "") + " " + (j.COUNTRY || "") + " " + j.KEYWORDS.join(" "))
               .toLowerCase()
               .includes(q)
@@ -1996,12 +2129,12 @@
                   error = errorText
                     ? `<div class="meta error" title="${esc(errorText)}">Error: ${esc(errorText).slice(0, 180)}</div>`
                     : "",
-                  actions = `<details class="job-more"><summary class="btn primary">Actions</summary><div class="file-actions" role="menu">${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Pause job</button>` : ""}${resumable ? `<button class="btn primary" data-a="resume" data-id="${j.id}">Resume${totalGrid ? ` (${Math.min(n + 1, totalGrid)}/${totalGrid})` : ""}</button>` : ""}<button class="btn" data-a="clone" data-id="${j.id}">Duplicate & edit</button><a class="btn" href="${j.csvUrl}" target="_blank">Leads CSV</a>${j.reportCsvUrl ? `<a class="btn" href="${j.reportCsvUrl}" target="_blank">Report CSV</a>` : ""}<a class="btn" href="/jobs/${j.id}/excel" target="_blank">Excel</a><a class="btn" href="${j.checkpointUrl}" target="_blank">Checkpoint</a><button class="btn danger" data-a="del" data-id="${j.id}">Delete job</button></div></details>`,
+                  actions = `<details class="job-more"><summary class="btn primary">Actions</summary><div class="file-actions" role="menu">${j.status === "running" ? `<button class="btn amber" data-a="stop" data-id="${j.id}">Pause job</button>` : ""}${resumable ? `<button class="btn primary" data-a="resume" data-id="${j.id}">Resume${totalGrid ? ` (${Math.min(n + 1, totalGrid)}/${totalGrid})` : ""}</button>` : ""}<button class="btn" data-a="clone" data-id="${j.id}">Duplicate & edit</button><a class="btn" href="${j.csvUrl}" target="_blank" rel="noopener">Leads CSV</a>${j.reportCsvUrl ? `<a class="btn" href="${j.reportCsvUrl}" target="_blank" rel="noopener">Report CSV</a>` : ""}<a class="btn" href="${j.checkpointUrl}" target="_blank" rel="noopener">Checkpoint</a><button class="btn danger" data-a="del" data-id="${j.id}">Delete job</button></div></details>`,
                   queueInfo =
                     j.status === "queued" && j.queuePosition
                       ? ` · queue position #${j.queuePosition}`
                       : "";
-                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} <span aria-hidden="true">/</span> ${esc(j.CITY)}</div><div class="job-config"><span>${esc(location)}${queueInfo}</span><span><b>${fmt.format(Number(j.STEP_METERS) || 0)} m</b> grid</span><span><b>${planned ? fmt.format(planned) : "—"}</b> planned</span></div>${timing}${error}</div><div class="job-metrics"><div class="job-progress-head"><span class="meta">Progress</span><b>${p}%</b></div><div class="track" aria-label="${fmt.format(n)} of ${totalGrid ? fmt.format(totalGrid) : "unknown"} grid complete"><div class="bar" style="width:${p}%"></div></div><div class="job-quick-stats"><b>${fmt.format(n)} / ${totalGrid ? fmt.format(totalGrid) : "—"}</b> grid · <b>${fmt.format(c.processedCount || 0)}</b> businesses${efficiency}</div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">View</button>${actions}</div></article>`;
+                return `<article class="job"><div><div class="state ${esc(j.status)}"><i class="dot" aria-hidden="true"></i>${labels[j.status] || j.status}</div><div class="title">${esc(j.KEYWORDS.join(" · "))} <span aria-hidden="true">/</span> ${esc(j.CITY)}</div><div class="job-config"><span>${esc(location)}${queueInfo}</span><span><b>${fmt.format(Number(j.STEP_METERS) || 0)} m</b> grid</span><span><b>${planned ? fmt.format(planned) : "—"}</b> planned</span></div>${timing}${error}</div><div class="job-metrics"><div class="job-progress-head"><span class="meta">Progress</span><b>${p}%</b></div><div class="track" aria-label="${fmt.format(n)} of ${totalGrid ? fmt.format(totalGrid) : "unknown"} grid complete"><div class="bar" style="width:${p}%"></div></div><div class="job-quick-stats"><b>${fmt.format(n)} / ${totalGrid ? fmt.format(totalGrid) : "—"}</b> grid · <b>${fmt.format(c.processedCount || 0)}</b> businesses${efficiency}</div></div><div class="job-actions"><button class="btn" data-a="view" data-id="${j.id}">View</button>${actions}<a class="btn excel-download" href="/jobs/${j.id}/excel" target="_blank" rel="noopener" aria-label="Download Excel report for ${esc(j.KEYWORDS.join(" · "))} in ${esc(j.CITY)}">Excel</a></div></article>`;
               })
               .join("")
           : '<div class="card" style="max-width:none"><h2>No matching jobs</h2><p class="lead">Create a job to get started.</p></div>';
@@ -2027,6 +2160,25 @@
         }
       };
       $("#search").oninput = render;
+      const statusFilterInputs = () => [...document.querySelectorAll("input[data-status-filter]")];
+      function syncStatusAllFilter() {
+        const inputs = statusFilterInputs(),
+          all = $("#statusAll"),
+          selected = inputs.filter((input) => input.checked).length;
+        all.checked = selected === inputs.length;
+        all.indeterminate = selected > 0 && selected < inputs.length;
+      }
+      $("#statusAll").onchange = (event) => {
+        statusFilterInputs().forEach((input) => (input.checked = event.target.checked));
+        event.target.indeterminate = false;
+        render();
+      };
+      statusFilterInputs().forEach((input) => {
+        input.onchange = () => {
+          syncStatusAllFilter();
+          render();
+        };
+      });
       $("#jobList").onclick = async (e) => {
         const b = e.target.closest("button[data-a]");
         if (!b) return;
