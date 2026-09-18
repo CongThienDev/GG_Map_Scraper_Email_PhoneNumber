@@ -1334,6 +1334,32 @@
               </div>
             </div>
           </section>
+          <section class="system-surface" aria-labelledby="proxyMetricsTitle">
+            <div class="system-surface-head">
+              <div>
+                <h2 id="proxyMetricsTitle">Rotating proxy</h2>
+                <p class="hint" id="proxyMetricsMeta">IP rotation for Google Maps scraping.</p>
+              </div>
+              <span class="badge" id="proxyBadge" hidden style="align-self:flex-start;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.02em;background:#64748b;color:#fff;">OFF</span>
+            </div>
+            <div class="metric-list">
+              <div class="metric-row">
+                <div class="metric-line"><span>Status</span><b id="proxyStatus2">—</b></div>
+              </div>
+              <div class="metric-row">
+                <div class="metric-line"><span>Endpoint</span><b id="proxyEndpoint">—</b></div>
+              </div>
+              <div class="metric-row">
+                <div class="metric-line"><span>Geo / User</span><b id="proxyGeo">—</b></div>
+              </div>
+              <div class="metric-row">
+                <div class="metric-line"><span>Sticky IP</span><b id="proxySticky">—</b></div>
+              </div>
+              <div class="metric-row">
+                <div class="metric-line"><span>Block assets</span><b id="proxyBlock">—</b></div>
+              </div>
+            </div>
+          </section>
         </div>
         <section class="system-insight" aria-labelledby="systemAdviceTitle">
           <div>
@@ -1646,6 +1672,36 @@
           severity === "danger"
             ? "Do not increase the job limit. Keep the next jobs queued and check resources before continuing."
             : "A recommended job limit will appear after this machine has enough load-baseline data.";
+        renderProxy(payload.proxy || {});
+      }
+      function renderProxy(proxy) {
+        const active = proxy.active === true;
+        const badge = $("#proxyBadge");
+        if (badge) {
+          badge.hidden = false;
+          badge.textContent = active ? "ON" : proxy.enabled ? "MISCONFIG" : "OFF";
+          badge.style.background = active ? "#16a34a" : proxy.enabled ? "#d97706" : "#64748b";
+          badge.style.color = "#fff";
+        }
+        $("#proxyMetricsMeta").textContent = active
+          ? "IP rotates per browser relaunch (sticky session)."
+          : proxy.reason || "Disabled — traffic uses the server's direct IP.";
+        $("#proxyStatus2").textContent = active
+          ? "Active"
+          : proxy.enabled
+            ? "Enabled but misconfigured"
+            : "Off (direct IP)";
+        $("#proxyEndpoint").textContent = proxy.endpoint || "—";
+        $("#proxyGeo").textContent =
+          [proxy.geo, proxy.username].filter(Boolean).join(" · ") || "—";
+        $("#proxySticky").textContent = active
+          ? proxy.sticky
+            ? `Yes (${proxy.stickyTemplate || "-session-{id}"})`
+            : "No (rotate every request)"
+          : "—";
+        $("#proxyBlock").textContent = proxy.blockAssets
+          ? `On · ${(proxy.blockAssetTypes || []).join(", ") || "image, media"}`
+          : "Off (all assets loaded)";
       }
       async function loadSystemMetrics() {
         if (systemLoading) return;
