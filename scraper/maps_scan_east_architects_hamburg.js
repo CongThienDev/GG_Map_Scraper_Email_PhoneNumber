@@ -83,6 +83,118 @@ const STAGNANT_LIMIT_SLOW = envInt("STAGNANT_LIMIT_SLOW", 16);
 const BROWSER_MAX_AGE_MS = envInt("BROWSER_MAX_AGE_MS", 30 * 60 * 1000); // mặc định 30 phút để giảm relaunch
 let BROWSER_LAUNCHED_AT = 0;
 
+// ====== PROXY (rotating residential gateway) ======
+// Backconnect gateway: 1 endpoint cố định, IP đổi theo "session id" nhúng trong username.
+// Mỗi lần relaunch browser -> sinh session mới -> IP mới, nhưng IP GIỮ ỔN ĐỊNH trong suốt
+// vòng đời của 1 browser (sticky) để không nhảy IP giữa phiên và dính CAPTCHA.
+const PROXY_ENABLED = envBool("PROXY_ENABLED", false);
+const PROXY_HOST = env("PROXY_HOST", "").trim();
+const PROXY_PORT = env("PROXY_PORT", "").trim();
+const PROXY_USERNAME = env("PROXY_USERNAME", "").trim(); // base, ví dụ: 0tt9iqxs49v6hp3-country-us
+const PROXY_PASSWORD = env("PROXY_PASSWORD", "");
+const PROXY_STICKY = envBool("PROXY_STICKY", true);
+// Template gắn session id vào username. {id} sẽ được thay bằng session ngẫu nhiên.
+const PROXY_STICKY_TEMPLATE = env("PROXY_STICKY_TEMPLATE", "-session-{id}");
+const PROXY_OK =
+  PROXY_ENABLED && PROXY_HOST && PROXY_PORT && PROXY_USERNAME && PROXY_PASSWORD.length > 0;
+
+if (PROXY_ENABLED && !PROXY_OK) {
+  console.log(
+    "[WARN] PROXY_ENABLED=true nhưng thiếu PROXY_HOST/PORT/USERNAME/PASSWORD -> chạy KHÔNG proxy."
+  );
+}
+
+let CURRENT_PROXY_SESSION = "";
+function rotateProxySession() {
+  // session id ngắn, đủ ngẫu nhiên để mỗi browser (kể cả các luồng song song) ra IP khác nhau
+  CURRENT_PROXY_SESSION = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  return CURRENT_PROXY_SESSION;
+}
+function currentProxyUsername() {
+  if (!PROXY_OK) return "";
+  if (!PROXY_STICKY) return PROXY_USERNAME; // để gateway tự xoay mỗi request
+  if (!CURRENT_PROXY_SESSION) rotateProxySession();
+  return PROXY_USERNAME + PROXY_STICKY_TEMPLATE.replace("{id}", CURRENT_PROXY_SESSION);
+}
+function proxyLaunchArgs() {
+  // Chromium chỉ nhận 1 proxy/instance; auth đi qua page.authenticate().
+  return PROXY_OK ? [`--proxy-server=http://${PROXY_HOST}:${PROXY_PORT}`] : [];
+}
+async function applyProxyAuth(page) {
+  if (!PROXY_OK || !page) return;
+  try {
+    await page.authenticate({ username: currentProxyUsername(), password: PROXY_PASSWORD });
+  } catch (e) {
+    console.log("[WARN] applyProxyAuth failed:", e.message);
+  }
+}
+
+// ====== ASSET BLOCKING (tiết kiệm băng thông proxy) ======
+// Chỉ chặn ảnh/media/font — GIỮ css/js/xhr/fetch/document để Maps chạy bình thường,
+// không ảnh hưởng dữ liệu (tên/phone/website đều từ DOM text, không phải ảnh).
+const BLOCK_ASSETS = envBool("BLOCK_ASSETS", false);
+const BLOCK_ASSET_TYPES = new Set(
+  env("BLOCK_ASSET_TYPES", "image,media")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+);
+async function configurePageAssets(page) {
+  if (!BLOCK_ASSETS || !page) return;
+  try {
+    await page.setRequestInterception(true);
+    page.on("request", (req) => {
+      try {
+        if (BLOCK_ASSET_TYPES.has(req.resourceType())) return req.abort();
+        return req.continue();
+      } catch {
+        try {
+          req.continue();
+        } catch {}
+      }
+    });
+  } catch (e) {
+    console.log("[WARN] configurePageAssets failed:", e.message);
+  }
+}
+
+// Chuẩn bị 1 page: auth proxy + chặn asset (gọi ngay sau mỗi newPage)
+async function preparePage(page) {
+  await applyProxyAuth(page);
+  await configurePageAssets(page);
+}
+
+// ====== EGRESS IP (bằng chứng IP đang xoay, hiển thị lên UI/log) ======
+const PROXY_VERIFY_IP = envBool("PROXY_VERIFY_IP", PROXY_OK);
+let LAST_EGRESS_IP = "";
+let LAST_EGRESS_AT = "";
+async function detectEgressIp(page) {
+  if (!PROXY_VERIFY_IP || !page) return;
+  try {
+    await page.goto("https://api.ipify.org?format=json", {
+      waitUntil: "domcontentloaded",
+      timeout: 15000,
+    });
+    const ip = await page.evaluate(() => {
+      const t = document.body?.innerText || "";
+      try {
+        return JSON.parse(t).ip || "";
+      } catch {
+        return t.trim();
+      }
+    });
+    if (ip) {
+      LAST_EGRESS_IP = ip;
+      LAST_EGRESS_AT = new Date().toISOString();
+      console.log(
+        `[INFO] Egress IP: ${ip} | session=${CURRENT_PROXY_SESSION || "-"} | proxy=${PROXY_OK ? "on" : "off"}`
+      );
+    }
+  } catch (e) {
+    console.log("[WARN] detectEgressIp failed:", e.message);
+  }
+}
+
 // ====== LOCALE SWITCH ======
 const LOCALE = env("LOCALE", "default"); // 'default' | 'de'
 
@@ -283,6 +395,10 @@ async function relaunchBrowser() {
   try {
     await BROWSER?.close().catch(() => {});
   } catch {}
+  if (PROXY_OK && PROXY_STICKY) {
+    rotateProxySession(); // browser mới -> IP mới
+    console.log(`[INFO] Proxy session mới: ${CURRENT_PROXY_SESSION} (IP xoay khi relaunch)`);
+  }
   BROWSER = await puppeteer.launch({
     headless: HEADLESS,
     protocolTimeout: 120000,
@@ -304,6 +420,7 @@ async function relaunchBrowser() {
       "--disable-background-timer-throttling",
       "--disable-backgrounding-occluded-windows",
       "--disable-renderer-backgrounding",
+      ...proxyLaunchArgs(),
     ],
     defaultViewport: { width: 1366, height: 768 },
   });
@@ -316,6 +433,7 @@ async function relaunchBrowser() {
 
   disconnected = false;
   const p = await hardResetSession(BROWSER);
+  await detectEgressIp(p);
   return p;
 }
 
@@ -327,6 +445,14 @@ function saveCheckpoint(nextCellIndex, meta = {}) {
     stt: STT,
     timestamp: new Date().toISOString(),
     benchmarkMetrics: snapshotBenchmarkMetrics(),
+    proxy: {
+      enabled: PROXY_OK,
+      geo: PROXY_OK ? PROXY_USERNAME : "",
+      sticky: PROXY_OK ? PROXY_STICKY : false,
+      session: CURRENT_PROXY_SESSION || "",
+      egressIp: LAST_EGRESS_IP || "",
+      egressAt: LAST_EGRESS_AT || "",
+    },
     ...meta,
   };
   try {
@@ -387,6 +513,7 @@ async function acceptConsentIfAny(page) {
 
 async function hardResetSession(browser) {
   const p = await browser.newPage();
+  await preparePage(p);
   try {
     const client =
       typeof p.createCDPSession === "function"
@@ -502,6 +629,7 @@ async function recoverAwSnapAndRetry(currentPage, url, { attempts = 2 } = {}) {
     } catch {}
     try {
       const newPage = await BROWSER.newPage();
+      await preparePage(newPage);
       await newPage.setUserAgent(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36"
       );
@@ -1453,6 +1581,14 @@ async function openEachPlaceAndGrab(page, links) {
 }
 
 (async () => {
+  if (PROXY_OK) {
+    if (PROXY_STICKY) rotateProxySession();
+    console.log(
+      `[INFO] Proxy BẬT: http://${PROXY_HOST}:${PROXY_PORT} | sticky=${PROXY_STICKY} | user=${currentProxyUsername()}`
+    );
+  } else {
+    console.log("[INFO] Proxy TẮT (PROXY_ENABLED=false hoặc thiếu cấu hình) — chạy IP trực tiếp.");
+  }
   BROWSER = await puppeteer.launch({
     headless: HEADLESS,
     protocolTimeout: 120000,
@@ -1474,6 +1610,7 @@ async function openEachPlaceAndGrab(page, links) {
       "--disable-background-timer-throttling",
       "--disable-backgrounding-occluded-windows",
       "--disable-renderer-backgrounding",
+      ...proxyLaunchArgs(),
     ],
     defaultViewport: { width: 1366, height: 768 },
   });
@@ -1486,6 +1623,7 @@ async function openEachPlaceAndGrab(page, links) {
   });
 
   let page = await BROWSER.newPage();
+  await preparePage(page);
   page.on("error", (err) => console.log("[PAGE ERROR]", err));
   page.on("pageerror", (err) => console.log("[PAGE JS ERROR]", err));
   page.setDefaultNavigationTimeout(60000);
@@ -1495,6 +1633,7 @@ async function openEachPlaceAndGrab(page, links) {
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36"
   );
+  await detectEgressIp(page);
 
   const polygon = await getCityPolygon(CITY);
   const STEP_METERS = envInt("STEP_METERS", 1200); // mặc định đi dày hơn để vét đủ
