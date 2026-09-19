@@ -59,6 +59,38 @@ npm start
 
 4. Open `http://localhost:8080/login`
 
+## One-time setup and long-running local use
+
+The setup scripts install the Node dependencies (including Puppeteer's Chromium), ask for an
+administrator login only when `.env` does not already exist, and create a direct-connection
+configuration with `MAX_CONCURRENT=2` and `BLOCK_ASSETS=true`. That is a sensible starting point
+for an 8 GB laptop. Google Maps requests from jobs running without a proxy still share one IP.
+
+### macOS
+
+```bash
+./scripts/setup-mac.sh
+./scripts/run-mac.sh
+```
+
+If Node.js is absent, the setup script installs it using Homebrew when available; otherwise it
+links to the official Node.js LTS installer. The run script uses `caffeinate -i -s`, so macOS will
+not sleep during a scrape (screen locking remains fine).
+
+### Windows 10/11
+
+Open PowerShell in the cloned repository and run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\setup-windows.ps1
+.\scripts\run-windows.ps1
+```
+
+The setup script uses `winget` to install Node.js LTS if needed. After a first-time Node install,
+open a new PowerShell window and run the setup command once more. Keep the PowerShell window open
+while scraping, and set Windows' sleep mode to **Never** while the job is running.
+
 ## Quality commands
 
 - Run tests:
